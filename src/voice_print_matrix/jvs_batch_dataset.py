@@ -7,7 +7,7 @@ import pathlib
 
 
 def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42, segments_per_batch: int=256) -> TensorDataset:
-    num_files = 10
+    num_files = 100
     sample_rate = 22050
     waveform_list = []
     label_list = []
@@ -51,6 +51,7 @@ def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_v
     waveform_array = waveform_array.reshape(dataset_size, segments_per_batch, segment_length)
     label_array = label_concat[0:truncated_length]
     label_array = label_array.reshape(dataset_size, segments_per_batch, segment_length)
+    label_array = label_array[:, :, 0]  # Take only the first sample of each segment
 
     waveform_tensor = torch.tensor(waveform_array, dtype=torch.float32)
     label_tensor = torch.tensor(label_array, dtype=torch.int8)

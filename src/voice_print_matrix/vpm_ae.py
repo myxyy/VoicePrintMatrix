@@ -29,7 +29,7 @@ class VPMAutoEncoder(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         content = self.content_encoder(x)
-        print = self.print_encoder(x)
-        x = torch.cat((content, print), dim=-1)
+        voice_print = self.print_encoder(x)
+        x = torch.cat((content, voice_print), dim=-1)
         x = self.decoder(x)
-        return x, content, print
+        return x, content, voice_print
