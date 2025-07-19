@@ -89,6 +89,6 @@ class AutoEncoder(nn.Module):
         self.decoder = Decoder()
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
+        latent = self.encoder(x)
+        x = self.decoder(latent)
+        return x, latent
