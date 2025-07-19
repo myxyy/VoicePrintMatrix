@@ -5,7 +5,9 @@ from voice_print_matrix.ae import AutoEncoder
 from voice_print_matrix.vpm_ae import VPMAutoEncoder
 from tqdm import tqdm
 
-jvs_dataset = JVSBatchDataset()
+segment_per_batch = 256
+
+jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch)
 #print(jvs_dataset[6257])
 #print(len(jvs_dataset))
 
@@ -42,7 +44,7 @@ for _ in range(num_epoch):
         latent_reconstructed, content, voice_print = model_vpm_ae(latent)
         loss_vpm_ae = criterion(latent, latent_reconstructed)
 
-        voice_print_matrix = nn.functional.cosine_similarity(voice_print[:,:,None,:], voice_print[:,None,:,:])
+        voice_print_matrix = nn.functional.cosine_similarity(voice_print[:,:,None,:], voice_print[:,None,:,:],dim=-1)
         voice_print_matrix_coef = torch.where(label[:, :, None] == label[:, None, :], 1.0, -1.0).triu(1).to(voice_print_matrix.device)
         voice_print_matrix *= voice_print_matrix_coef
         loss_vp = -torch.mean(voice_print_matrix)
