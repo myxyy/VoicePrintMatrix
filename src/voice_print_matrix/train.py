@@ -10,7 +10,7 @@ jvs_dataset = JVSBatchDataset()
 
 model = AutoEncoder().to('cuda')
 
-optimizer = torch.optim.Adam(model.parameters())
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
 
 batch_size = 1
 num_epoch = 10
@@ -23,7 +23,8 @@ for _ in range(num_epoch):
     pbar = tqdm(dataloader)
     for batch in pbar:
         waveform, label = batch
-        waveform = waveform.unsqueeze(1).to('cuda')
+        batch_size, length, segment_length = waveform.shape
+        waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
         optimizer.zero_grad()
         loss = criterion(waveform, model(waveform))
         loss.backward()
