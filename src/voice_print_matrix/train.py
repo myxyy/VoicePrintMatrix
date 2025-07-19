@@ -24,11 +24,14 @@ dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, s
 
 criterion = nn.MSELoss()
 
+voice_print_permutation_split = 8
+
 for _ in range(num_epoch):
     pbar = tqdm(dataloader)
     for batch in pbar:
         waveform, label = batch
         batch_size, length, segment_length = waveform.shape
+        assert length % voice_print_permutation_split == 0, "Length must be divisible by voice_print_permutation_split"
         waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
         optimizer_ae.zero_grad()
         optimizer_vpm_ae.zero_grad()
@@ -42,13 +45,20 @@ for _ in range(num_epoch):
         voice_print_matrix = nn.functional.cosine_similarity(voice_print[:,:,None,:], voice_print[:,None,:,:])
         voice_print_matrix_coef = torch.where(label[:, :, None] == label[:, None, :], 1.0, -1.0).triu(1).to(voice_print_matrix.device)
         voice_print_matrix *= voice_print_matrix_coef
-        loss_vp = torch.mean(voice_print_matrix)
+        loss_vp = -torch.mean(voice_print_matrix)
 
-        loss = loss_ae + loss_vpm_ae + loss_vp
+        voice_print_permuted = voice_print.reshape(batch_size, voice_print_permutation_split, length // voice_print_permutation_split, voice_print.shape[-1])
+        voice_print_permuted = voice_print_permuted[:, torch.randperm(voice_print_permutation_split), :, :]
+        voice_print_permuted = voice_print_permuted.reshape(batch_size, length, voice_print.shape[-1])
+        content_reconstructed, voice_print_permuted_reconstructed = model_vpm_ae.upside_down(content, voice_print_permuted)
+        loss_udc = criterion(content, content_reconstructed)
+        loss_udp = criterion(voice_print_permuted, voice_print_permuted_reconstructed)
+
+        loss = loss_ae + loss_vpm_ae + loss_vp + loss_udc + loss_udp
         loss.backward()
         optimizer_ae.step()
         optimizer_vpm_ae.step()
-        pbar.set_postfix(loss_ae=loss_ae.item(), loss_vpm_ae=loss_vpm_ae.item(), loss_vp=loss_vp.item(), loss=loss.item())
+        pbar.set_postfix(loss_ae=loss_ae.item(), loss_vpm_ae=loss_vpm_ae.item(), loss_vp=loss_vp.item(), loss_udc=loss_udc.item(), loss_udp=loss_udp.item())
 
 torch.save(model_ae.state_dict(), 'resources/weight/ae.pt')
 torch.save(model_vpm_ae.state_dict(), 'resources/weight/vpm_ae.pt')

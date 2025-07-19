@@ -33,3 +33,10 @@ class VPMAutoEncoder(nn.Module):
         x = torch.cat((content, voice_print), dim=-1)
         x = self.decoder(x)
         return x, content, voice_print
+
+    def upside_down(self, content: torch.Tensor, voice_print: torch.Tensor) -> torch.Tensor:
+        x = torch.cat((content, voice_print), dim=-1)
+        x = self.decoder(x)
+        content_reconstructed = self.content_encoder(x)
+        voice_print_reconstructed = self.print_encoder(x)
+        return content_reconstructed, voice_print_reconstructed
