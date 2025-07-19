@@ -1,0 +1,94 @@
+import torch
+import torch.nn as nn
+
+class ResConvStack(nn.Module):
+    def __init__(self, channel, depth):
+        super().__init__()
+        self.conv_list = nn.ModuleList([nn.Conv1d(channel, channel, 5, stride=1, padding=2) for _ in range(depth)])
+        self.act = nn.ReLU()
+
+    def forward(self, x):
+        for conv in self.conv_list:
+            x_ = x
+            x = conv(x)
+            x = self.act(x)
+            x = x + x_
+        return x
+
+class ResConvTransStack(nn.Module):
+    def __init__(self, channel, depth):
+        super().__init__()
+        self.conv_list = nn.ModuleList([nn.ConvTranspose1d(channel, channel, 5, stride=1, padding=2) for _ in range(depth)])
+        self.act = nn.ReLU()
+
+    def forward(self, x):
+        for conv in self.conv_list:
+            x_ = x
+            x = conv(x)
+            x = self.act(x)
+            x = x + x_
+        return x
+
+
+class Encoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        channel = 32
+        self.conv1 = nn.Conv1d(1, channel, 4, stride=2, padding=1)
+        self.conv2 = nn.Conv1d(channel, channel, 4, stride=2, padding=1)
+        self.conv3 = nn.Conv1d(channel, channel, 4, stride=2, padding=1)
+        self.conv4 = nn.Conv1d(channel, channel, 4, stride=2, padding=1)
+        self.res_stack = ResConvStack(channel, 4) 
+        self.conv_out = nn.Conv1d(channel, 4, 5, stride=1, padding=2)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.act(x)
+        x = self.conv2(x)
+        x = self.act(x)
+        x = self.conv3(x)
+        x = self.act(x)
+        x = self.conv4(x)
+        x = self.act(x)
+        x = self.res_stack(x)
+        x = self.act(x)
+        x = self.conv_out(x)
+        return x
+
+class Decoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        channel = 32
+        self.conv_in = nn.ConvTranspose1d(4, channel, 5, stride=1, padding=2)
+        self.res_stack = ResConvTransStack(channel, 4) 
+        self.conv4 = nn.ConvTranspose1d(channel, channel, 4, stride=2, padding=1)
+        self.conv3 = nn.ConvTranspose1d(channel, channel, 4, stride=2, padding=1)
+        self.conv2 = nn.ConvTranspose1d(channel, channel, 4, stride=2, padding=1)
+        self.conv1 = nn.ConvTranspose1d(channel, 1, 4, stride=2, padding=1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.conv_in(x)
+        x = self.act(x)
+        x = self.res_stack(x)
+        x = self.act(x)
+        x = self.conv4(x)
+        x = self.act(x)
+        x = self.conv3(x)
+        x = self.act(x)
+        x = self.conv2(x)
+        x = self.act(x)
+        x = self.conv1(x)
+        return x
+
+class AutoEncoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
