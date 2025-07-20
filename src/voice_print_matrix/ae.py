@@ -82,24 +82,27 @@ class Decoder(nn.Module):
         x = self.conv1(x)
         return x
 
-class AutoEncoder(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
-
-    def forward(self, x):
-        latent = self.encoder(x)
-        x = self.decoder(latent)
-        return x, latent
-
 #class AutoEncoder(nn.Module):
 #    def __init__(self):
 #        super().__init__()
-#        self.encoder = nn.Sequential(nn.Linear(2048, 4096), nn.SiLU(), nn.Linear(4096, 512))
-#        self.decoder = nn.Sequential(nn.Linear(512, 4096), nn.SiLU(), nn.Linear(4096, 2048))
+#        self.encoder = Encoder()
+#        self.decoder = Decoder()
 #
 #    def forward(self, x):
 #        latent = self.encoder(x)
 #        x = self.decoder(latent)
 #        return x, latent
+
+class AutoEncoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        dim_segment = 2048
+        dim_hidden = 8192
+        dim_token = 512
+        self.encoder = nn.Sequential(nn.Linear(dim_segment, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_token), nn.LayerNorm(dim_token))
+        self.decoder = nn.Sequential(nn.Linear(dim_token, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_segment))
+
+    def forward(self, x):
+        latent = self.encoder(x)
+        x = self.decoder(latent)
+        return x, latent

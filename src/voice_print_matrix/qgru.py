@@ -151,6 +151,7 @@ class QGRUModel(nn.Module):
             torch.zeros(num_layers, dim_hidden)
         )
         self.fc_in = nn.Linear(dim_in, dim)
+        self.fc_out_norm = RMSNorm(dim)
         self.fc_out = nn.Linear(dim, dim_out)
 
     def hidden_init(self, batch):
@@ -163,6 +164,7 @@ class QGRUModel(nn.Module):
             x, hidden_next_layer = layer(x, hidden[:, i])
             hidden_next.append(hidden_next_layer)
         hidden_next = torch.stack(hidden_next, dim=1)
+        x = self.fc_out_norm(x)
         x = self.fc_out(x)
         return x, hidden_next
 

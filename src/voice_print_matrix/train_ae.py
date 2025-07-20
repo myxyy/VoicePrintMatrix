@@ -6,14 +6,14 @@ from tqdm import tqdm
 
 segment_per_batch = 256
 
-jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch)
+jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch, size_ratio=1)
 #print(jvs_dataset[6257])
 #print(len(jvs_dataset))
 
 model_ae = AutoEncoder().to('cuda')
 model_ae.train()
 
-optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-3)
+optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-4)
 
 batch_size = 8
 num_epoch = 10

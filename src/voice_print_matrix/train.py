@@ -11,13 +11,15 @@ jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch)
 #print(jvs_dataset[6257])
 #print(len(jvs_dataset))
 
+ae_state_dict = torch.load("resources/weight/ae.pt")
 model_ae = AutoEncoder().to('cuda')
+model_ae.load_state_dict(ae_state_dict)
 model_vpm_ae = VPMAutoEncoder(dim_token=512, dim_content=256, dim_print=256, dim=512, dim_hidden=1024, num_layers=8).to('cuda')
 model_ae.train()
 model_vpm_ae.train()
 
-optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-3)
-optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=1e-3)
+optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-4)
+optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=1e-4)
 
 batch_size = 8
 num_epoch = 10
@@ -38,6 +40,7 @@ for _ in range(num_epoch):
         optimizer_ae.zero_grad()
         optimizer_vpm_ae.zero_grad()
         waveform_reconstructed, latent = model_ae(waveform)
+        latent = latent.detach()
         latent = latent.reshape(batch_size, length, -1)
         loss_ae = criterion(waveform, waveform_reconstructed)
 
@@ -52,9 +55,9 @@ for _ in range(num_epoch):
         voice_print_permuted = voice_print.reshape(batch_size, voice_print_permutation_split, length // voice_print_permutation_split, voice_print.shape[-1])
         voice_print_permuted = voice_print_permuted[:, torch.randperm(voice_print_permutation_split), :, :]
         voice_print_permuted = voice_print_permuted.reshape(batch_size, length, voice_print.shape[-1])
-        content_reconstructed, voice_print_permuted_reconstructed = model_vpm_ae.upside_down(content, voice_print_permuted)
-        loss_udc = criterion(content, content_reconstructed)
-        loss_udp = criterion(voice_print_permuted, voice_print_permuted_reconstructed)
+        content_reconstructed, voice_print_permuted_reconstructed = model_vpm_ae.upside_down(content.detach(), voice_print_permuted.detach())
+        loss_udc = criterion(content.detach(), content_reconstructed)
+        loss_udp = criterion(voice_print_permuted.detach(), voice_print_permuted_reconstructed)
 
         loss = loss_ae + loss_vpm_ae + loss_vp + loss_udc + loss_udp
         loss.backward()
