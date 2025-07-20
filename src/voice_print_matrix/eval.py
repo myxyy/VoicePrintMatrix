@@ -10,6 +10,8 @@ model_ae = AutoEncoder().to('cuda')
 model_vpm_ae = VPMAutoEncoder(dim_token=512, dim_content=256, dim_print=256, dim=512, dim_hidden=1024, num_layers=8).to('cuda')
 model_ae.load_state_dict(ae_state_dict)
 model_vpm_ae.load_state_dict(vpm_ae_state_dict)
+model_ae.eval()
+model_vpm_ae.eval()
 
 segment_length = 2048
 sample_rate = 22050
@@ -42,3 +44,4 @@ torchaudio.save(uri='resources/metan_zundamon_transformed.wav', src=metan_zundam
 
 metan_reconstructed = model_ae.decoder(metan_tokens.reshape(metan_tokens_shape)).reshape(1,-1).cpu().detach()
 torchaudio.save(uri='resources/metan_reconstructed.wav', src=metan_reconstructed, sample_rate=sample_rate, encoding="PCM_F")
+torchaudio.save(uri='resources/metan_naive.wav', src=metan_waveform_tensor.reshape(1,-1).cpu().detach(), sample_rate=sample_rate, encoding="PCM_F")

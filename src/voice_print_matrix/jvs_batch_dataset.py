@@ -6,8 +6,8 @@ import torch
 import pathlib
 
 
-def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42, segments_per_batch: int=256) -> TensorDataset:
-    num_files = 100
+def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42, segments_per_batch: int=256, size_ratio: float=1.0) -> TensorDataset:
+    num_files = (int)(100 * size_ratio)
     sample_rate = 22050
     waveform_list = []
     label_list = []

@@ -1,0 +1,41 @@
+import torch
+import torch.nn as nn
+from voice_print_matrix.jvs_batch_dataset import JVSBatchDataset
+from voice_print_matrix.ae import AutoEncoder
+from tqdm import tqdm
+
+segment_per_batch = 256
+
+jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch)
+#print(jvs_dataset[6257])
+#print(len(jvs_dataset))
+
+model_ae = AutoEncoder().to('cuda')
+model_ae.train()
+
+optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-5)
+
+batch_size = 8
+num_epoch = 10
+dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, shuffle=True)
+ 
+
+criterion = nn.MSELoss()
+
+voice_print_permutation_split = 8
+
+for _ in range(num_epoch):
+    pbar = tqdm(dataloader)
+    for batch in pbar:
+        waveform, label = batch
+        batch_size, length, segment_length = waveform.shape
+        assert length % voice_print_permutation_split == 0, "Length must be divisible by voice_print_permutation_split"
+        waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
+        optimizer_ae.zero_grad()
+        waveform_reconstructed, latent = model_ae(waveform)
+        loss = criterion(waveform, waveform_reconstructed)
+        loss.backward()
+        optimizer_ae.step()
+        pbar.set_postfix(loss=loss.item())
+
+torch.save(model_ae.state_dict(), 'resources/weight/ae.pt')
