@@ -12,8 +12,9 @@ model_ae.load_state_dict(ae_state_dict)
 model_vpm_ae.load_state_dict(vpm_ae_state_dict)
 
 segment_length = 2048
+sample_rate = 22050
 
-zundamon_waveform, _ = librosa.load('resources/zundamon.wav', sr=22050)
+zundamon_waveform, _ = librosa.load('resources/zundamon.wav', sr=sample_rate)
 zundamon_waveform = zundamon_waveform[:(len(zundamon_waveform) // segment_length) * segment_length]
 zundamon_waveform_tensor = torch.tensor(zundamon_waveform, dtype=torch.float32).reshape(-1, segment_length).to('cuda')
 zundamon_length = zundamon_waveform_tensor.shape[0]
@@ -37,4 +38,7 @@ metan_zundamon_transformed_tokens = metan_zundamon_transformed_tokens.reshape(me
 
 metan_zundamon_transformed = model_ae.decoder(metan_zundamon_transformed_tokens)
 metan_zundamon_transformed = metan_zundamon_transformed.reshape(1,-1).cpu().detach()
-torchaudio.save(uri='resources/metan_zundamon_transformed.wav', src=metan_zundamon_transformed, sample_rate=22050, encoding="PCM_F")
+torchaudio.save(uri='resources/metan_zundamon_transformed.wav', src=metan_zundamon_transformed, sample_rate=sample_rate, encoding="PCM_F")
+
+metan_reconstructed = model_ae.decoder(metan_tokens.reshape(metan_tokens_shape)).reshape(1,-1).cpu().detach()
+torchaudio.save(uri='resources/metan_reconstructed.wav', src=metan_reconstructed, sample_rate=sample_rate, encoding="PCM_F")
