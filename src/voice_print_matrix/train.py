@@ -55,7 +55,10 @@ for _ in range(num_epoch):
         voice_print_permuted = voice_print.reshape(batch_size, voice_print_permutation_split, length // voice_print_permutation_split, voice_print.shape[-1])
         voice_print_permuted = voice_print_permuted[:, torch.randperm(voice_print_permutation_split), :, :]
         voice_print_permuted = voice_print_permuted.reshape(batch_size, length, voice_print.shape[-1])
-        content_reconstructed, voice_print_permuted_reconstructed = model_vpm_ae.upside_down(content.detach(), voice_print_permuted.detach())
+        with torch.no_grad():
+            reconstructed_tokens = model_vpm_ae.decoder(torch.cat((content, voice_print_permuted), dim=-1))
+        content_reconstructed = model_vpm_ae.content_encoder(reconstructed_tokens)
+        voice_print_permuted_reconstructed = model_vpm_ae.print_encoder(reconstructed_tokens)
         loss_udc = criterion(content.detach(), content_reconstructed)
         loss_udp = criterion(voice_print_permuted.detach(), voice_print_permuted_reconstructed)
 

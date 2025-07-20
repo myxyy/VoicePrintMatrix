@@ -94,11 +94,8 @@ class Decoder(nn.Module):
 #        return x, latent
 
 class AutoEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, dim_segment=2048, dim_hidden=8192, dim_token=512):
         super().__init__()
-        dim_segment = 2048
-        dim_hidden = 8192
-        dim_token = 512
         self.encoder = nn.Sequential(nn.Linear(dim_segment, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_token), nn.LayerNorm(dim_token))
         self.decoder = nn.Sequential(nn.Linear(dim_token, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_segment))
 
