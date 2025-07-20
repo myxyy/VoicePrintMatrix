@@ -13,7 +13,7 @@ jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch)
 model_ae = AutoEncoder().to('cuda')
 model_ae.train()
 
-optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-5)
+optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-3)
 
 batch_size = 8
 num_epoch = 10
@@ -28,10 +28,10 @@ for _ in range(num_epoch):
     pbar = tqdm(dataloader)
     for batch in pbar:
         waveform, label = batch
+        optimizer_ae.zero_grad()
         batch_size, length, segment_length = waveform.shape
         assert length % voice_print_permutation_split == 0, "Length must be divisible by voice_print_permutation_split"
         waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
-        optimizer_ae.zero_grad()
         waveform_reconstructed, latent = model_ae(waveform)
         loss = criterion(waveform, waveform_reconstructed)
         loss.backward()

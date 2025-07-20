@@ -16,8 +16,8 @@ model_vpm_ae = VPMAutoEncoder(dim_token=512, dim_content=256, dim_print=256, dim
 model_ae.train()
 model_vpm_ae.train()
 
-optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-5)
-optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=1e-5)
+optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-3)
+optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=1e-3)
 
 batch_size = 8
 num_epoch = 10

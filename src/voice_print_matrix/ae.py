@@ -92,3 +92,14 @@ class AutoEncoder(nn.Module):
         latent = self.encoder(x)
         x = self.decoder(latent)
         return x, latent
+
+#class AutoEncoder(nn.Module):
+#    def __init__(self):
+#        super().__init__()
+#        self.encoder = nn.Sequential(nn.Linear(2048, 4096), nn.SiLU(), nn.Linear(4096, 512))
+#        self.decoder = nn.Sequential(nn.Linear(512, 4096), nn.SiLU(), nn.Linear(4096, 2048))
+#
+#    def forward(self, x):
+#        latent = self.encoder(x)
+#        x = self.decoder(latent)
+#        return x, latent
