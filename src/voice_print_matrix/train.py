@@ -28,7 +28,7 @@ model_vpm_ae.train()
 model_vpm_ae = DDP(model_vpm_ae, device_ids=[gpu_id])
 
 batch_size = 4
-lr = 1e-5 * batch_size * world_size
+lr = 1e-4
 
 optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=lr)
 
@@ -84,8 +84,8 @@ for epoch in range(num_epoch):
         if gpu_id == 0:
             pbar.set_postfix(loss_ae=loss_ae.item(), loss_vp=loss_vp.item(), loss_udc=loss_udc.item(), loss_udp=loss_udp.item())
 
-if gpu_id == 0:
-    print("Saving model weights...")
-    torch.save(model_vpm_ae.state_dict(), 'resources/weight/vpm_ae.pt')
+    if gpu_id == 0:
+        print("Saving model weights...")
+        torch.save(model_vpm_ae.module.state_dict(), 'resources/weight/vpm_ae.pt')
 
 destroy_process_group()
