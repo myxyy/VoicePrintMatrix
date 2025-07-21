@@ -18,14 +18,16 @@ class ResConvStack(nn.Module):
 class ResConvTransStack(nn.Module):
     def __init__(self, channel, depth):
         super().__init__()
-        self.conv_list = nn.ModuleList([nn.ConvTranspose1d(channel, channel, 5, stride=1, padding=2) for _ in range(depth)])
-        self.act = nn.ReLU()
+        self.conv_list = nn.ModuleList([nn.Sequential(
+            nn.ConvTranspose1d(channel, channel, 5, stride=1, padding=2),
+            nn.SiLU(),
+            nn.Conv1d(channel, channel, 5, stride=1, padding=2)
+        ) for _ in range(depth)])
 
     def forward(self, x):
         for conv in self.conv_list:
             x_ = x
             x = conv(x)
-            x = self.act(x)
             x = x + x_
         return x
 
@@ -82,24 +84,24 @@ class Decoder(nn.Module):
         x = self.conv1(x)
         return x
 
-#class AutoEncoder(nn.Module):
-#    def __init__(self):
-#        super().__init__()
-#        self.encoder = Encoder()
-#        self.decoder = Decoder()
-#
-#    def forward(self, x):
-#        latent = self.encoder(x)
-#        x = self.decoder(latent)
-#        return x, latent
-
 class AutoEncoder(nn.Module):
-    def __init__(self, dim_segment=2048, dim_hidden=8192, dim_token=512):
+    def __init__(self):
         super().__init__()
-        self.encoder = nn.Sequential(nn.Linear(dim_segment, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_token), nn.LayerNorm(dim_token))
-        self.decoder = nn.Sequential(nn.Linear(dim_token, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_segment))
+        self.encoder = Encoder()
+        self.decoder = Decoder()
 
     def forward(self, x):
         latent = self.encoder(x)
         x = self.decoder(latent)
         return x, latent
+
+#class AutoEncoder(nn.Module):
+#    def __init__(self, dim_segment=2048, dim_hidden=8192, dim_token=512):
+#        super().__init__()
+#        self.encoder = nn.Sequential(nn.Linear(dim_segment, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_token), nn.LayerNorm(dim_token))
+#        self.decoder = nn.Sequential(nn.Linear(dim_token, dim_hidden), nn.SiLU(), nn.Linear(dim_hidden, dim_segment))
+#
+#    def forward(self, x):
+#        latent = self.encoder(x)
+#        x = self.decoder(latent)
+#        return x, latent

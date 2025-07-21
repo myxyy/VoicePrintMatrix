@@ -3,23 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6, elementwise_affine: bool = True):
-        super().__init__()
-        self.normalized_shape = dim
-        self.eps = eps
-        self.elementwise_affine = elementwise_affine
-        self.weight: nn.Parameter | None = (
-            nn.Parameter(torch.ones(dim)) if self.elementwise_affine else None
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        output = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
-        if self.weight is not None:
-            output = output * self.weight
-        return output
-
-
 class FFNSwiGLU(nn.Module):
     def __init__(self, dim: int, dim_ff_hidden: int):
         super().__init__()
@@ -112,8 +95,8 @@ class QGRUBlock(nn.Module):
         super().__init__()
         self.qlstm = QGRULayer(dim, dim_hidden)
         self.ffn = FFNSwiGLU(dim, dim_hidden)
-        self.norm_qlstm = RMSNorm(dim)
-        self.norm_ffn = RMSNorm(dim)
+        self.norm_qlstm = nn.LayerNorm(dim)
+        self.norm_ffn = nn.LayerNorm(dim)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor, hidden: Tensor) -> tuple[Tensor, Tensor]:
@@ -151,7 +134,7 @@ class QGRUModel(nn.Module):
             torch.zeros(num_layers, dim_hidden)
         )
         self.fc_in = nn.Linear(dim_in, dim)
-        self.fc_out_norm = RMSNorm(dim)
+        self.fc_out_norm = nn.LayerNorm(dim)
         self.fc_out = nn.Linear(dim, dim_out)
 
     def hidden_init(self, batch):

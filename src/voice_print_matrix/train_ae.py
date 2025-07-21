@@ -3,6 +3,7 @@ import torch.nn as nn
 from voice_print_matrix.jvs_batch_dataset import JVSBatchDataset
 from voice_print_matrix.ae import AutoEncoder
 from tqdm import tqdm
+from voice_print_matrix.utils import multiscale_spectrum
 
 segment_per_batch = 256
 
@@ -33,7 +34,9 @@ for _ in range(num_epoch):
         assert length % voice_print_permutation_split == 0, "Length must be divisible by voice_print_permutation_split"
         waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
         waveform_reconstructed, latent = model_ae(waveform)
-        loss = criterion(waveform, waveform_reconstructed)
+        waveform_spectrum = multiscale_spectrum(waveform.squeeze(1))
+        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.squeeze(1))
+        loss = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
         loss.backward()
         optimizer_ae.step()
         pbar.set_postfix(loss=loss.item())

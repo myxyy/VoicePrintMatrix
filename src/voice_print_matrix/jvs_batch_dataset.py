@@ -6,11 +6,13 @@ import torch
 import pathlib
 
 
-def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42, segments_per_batch: int=256, size_ratio: float=1.0) -> TensorDataset:
+def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42, segments_per_batch: int=256, size_ratio: float=1.0, permute_segments: int=64) -> TensorDataset:
     num_files = (int)(100 * size_ratio)
     sample_rate = 22050
     waveform_list = []
     label_list = []
+
+    assert segments_per_batch % permute_segments == 0, "segments_per_batch must be divisible by permute_segment_length"
 
     dataset_path = pathlib.Path(dataset_path)
     filepath_list = []
@@ -48,6 +50,7 @@ def JVSBatchDataset(segment_length: int=2048, dataset_path: str='resources/jvs_v
     dataset_size = truncated_length // length_per_batch
 
     waveform_array = waveform_concat[0:truncated_length]
+
     waveform_array = waveform_array.reshape(dataset_size, segments_per_batch, segment_length)
     label_array = label_concat[0:truncated_length]
     label_array = label_array.reshape(dataset_size, segments_per_batch, segment_length)
