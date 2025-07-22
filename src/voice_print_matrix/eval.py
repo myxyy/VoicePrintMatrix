@@ -5,7 +5,7 @@ import librosa
 import torchaudio
 
 vpm_ae_state_dict = torch.load("resources/weight/vpm_ae.pt")
-model_vpm_ae = VPMAutoEncoder(dim_token=2048, dim_content=512, dim_print=512, dim=1024, dim_hidden=2048, num_layers=8).to('cuda')
+model_vpm_ae = VPMAutoEncoder(waveform_length=2048, dim_content=512, dim_print=512, dim=1024, dim_hidden=2048, num_layers=8).to('cuda')
 model_vpm_ae.load_state_dict(vpm_ae_state_dict)
 model_vpm_ae.eval()
 

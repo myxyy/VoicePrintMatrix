@@ -23,12 +23,12 @@ jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch, size_ratio=1
 #print(len(jvs_dataset))
 
 
-model_vpm_ae = VPMAutoEncoder(dim_token=2048, dim_content=512, dim_print=512, dim=1024, dim_hidden=2048, num_layers=8).to('cuda')
+model_vpm_ae = VPMAutoEncoder(waveform_length=2048, dim_content=512, dim_print=512, dim=1024, dim_hidden=2048, num_layers=8).to('cuda')
 model_vpm_ae.train()
 model_vpm_ae = DDP(model_vpm_ae, device_ids=[gpu_id])
 
 batch_size = 4
-lr = 1e-4
+lr = 1e-5
 
 optimizer_vpm_ae = torch.optim.AdamW(model_vpm_ae.parameters(), lr=lr)
 
@@ -54,9 +54,10 @@ for epoch in range(num_epoch):
         waveform = waveform.to('cuda')
 
         waveform_reconstructed, content, voice_print = model_vpm_ae(waveform)
-        waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, -1))
-        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, -1))
-        loss_ae = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
+        #waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, -1))
+        #waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, -1))
+        #loss_ae = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
+        loss_ae = criterion(waveform, waveform_reconstructed)
 
         voice_print_matrix = nn.functional.cosine_similarity(voice_print[:,:,None,:], voice_print[:,None,:,:],dim=-1)
         voice_print_matrix_coef = torch.where(label[:, :, None] == label[:, None, :], 1.0, -1.0).triu(1).to(voice_print_matrix.device)
