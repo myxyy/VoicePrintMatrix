@@ -1,15 +1,21 @@
 from voice_print_matrix.qgru import QGRUModel
 import torch.nn as nn
 import torch
+import torchaudio
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024):
+    def __init__(self, waveform_length=2048, dim=1024, dim_out=1024):
         super().__init__()
-        self.fc = nn.Linear(waveform_length * 2, dim)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=256, n_mels=128, center=False)
+        num_steps = (waveform_length - 512) // 256 + 1
+        self.qgru = QGRUModel(dim_in=128 * num_steps, dim_out=dim_out, dim=dim, dim_hidden=2048, num_layers=4)
 
     def forward(self, x):
-        fft = torch.fft.fft(x, dim=-1)
-        return self.fc(torch.cat((fft.real, fft.imag), dim=-1))
+        batch, length, _ = x.shape
+        mel_spectrogram = self.transform(x)
+        x = mel_spectrogram.reshape(batch, length, -1)
+        x = self.qgru(x)
+        return x
 
 class Decoder(nn.Module):
     def __init__(self, waveform_length=2048, dim=1024, num_oscillators=128):
@@ -34,36 +40,9 @@ class Decoder(nn.Module):
 class VPMAutoEncoder(nn.Module):
     def __init__(self, waveform_length: int, dim_content: int, dim_print: int, dim: int, dim_hidden: int, num_layers: int):
         super().__init__()
-        self.content_encoder = nn.Sequential(
-            Encoder(waveform_length=waveform_length, dim=dim),
-            QGRUModel(
-                dim_in=dim,
-                dim_out=dim_content,
-                dim=dim,
-                dim_hidden=dim_hidden,
-                num_layers=num_layers
-            )
-        )
-        self.print_encoder = nn.Sequential(
-            Encoder(waveform_length=waveform_length, dim=dim),
-            QGRUModel(
-                dim_in=dim,
-                dim_out=dim_print,
-                dim=dim,
-                dim_hidden=dim_hidden,
-                num_layers=num_layers
-            )
-        )
-        self.decoder = nn.Sequential(
-            QGRUModel(
-                dim_in=dim_content + dim_print,
-                dim_out=dim,
-                dim=dim,
-                dim_hidden=dim_hidden,
-                num_layers=num_layers
-            ),
-            Decoder(waveform_length=waveform_length, dim=dim)
-        )
+        self.content_encoder = Encoder(waveform_length=waveform_length, dim=dim, dim_out=dim_content)
+        self.print_encoder = Encoder(waveform_length=waveform_length, dim=dim, dim_out=dim_print)
+        self.decoder = Decoder(waveform_length=waveform_length, dim=dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         content = self.content_encoder(x)
@@ -78,3 +57,14 @@ class VPMAutoEncoder(nn.Module):
         content_reconstructed = self.content_encoder(x)
         voice_print_reconstructed = self.print_encoder(x)
         return content_reconstructed, voice_print_reconstructed
+
+class AutoEncoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+    
+    def forward(self, x):
+        latent = self.encoder(x)
+        x = self.decoder(latent)
+        return x, latent

@@ -1,5 +1,5 @@
 import torch
-from  voice_print_matrix.ae import AutoEncoder
+from  voice_print_matrix.vpm_ae import AutoEncoder
 import librosa
 import torchaudio
 

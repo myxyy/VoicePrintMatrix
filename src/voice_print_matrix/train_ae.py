@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from voice_print_matrix.jvs_batch_dataset import JVSBatchDataset
-from voice_print_matrix.ae import AutoEncoder
+from voice_print_matrix.vpm_ae import AutoEncoder
 from tqdm import tqdm
 from voice_print_matrix.utils import multiscale_spectrum
 
@@ -41,4 +41,6 @@ for _ in range(num_epoch):
         optimizer_ae.step()
         pbar.set_postfix(loss=loss.item())
 
-torch.save(model_ae.state_dict(), 'resources/weight/ae.pt')
+    print("Saving model weights...")
+    torch.save(model_ae.state_dict(), 'resources/weight/ae.pt')
+
