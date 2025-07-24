@@ -1,7 +1,7 @@
 import torch
 from torch.fft import fft
 
-def multiscale_spectrum(waveform, min_length=64):
+def multiscale_spectrum(waveform, min_length=1):
     """
     Compute the multiscale spectrum of a waveform.
     

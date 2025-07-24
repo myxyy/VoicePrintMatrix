@@ -4,7 +4,7 @@ import torch
 import torchaudio
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=8, dim_out=1024):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, dim_out=1024):
         super().__init__()
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=256, n_mels=128, center=False)
         num_steps = (waveform_length - 512) // 256 + 1
@@ -18,7 +18,7 @@ class Encoder(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=8, num_oscillators=16):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=16):
         super().__init__()
         self.num_oscillators = num_oscillators
         self.waveform_length = waveform_length
@@ -27,6 +27,10 @@ class Decoder(nn.Module):
         self.fs_fc = nn.Linear(dim, waveform_length)
         self.amp_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
         self.amp_whole_fc = nn.Linear(dim, waveform_length)
+        self.norm = nn.LayerNorm(dim)
+        self.fc_noise_1 = nn.Linear(dim + waveform_length, dim_hidden + waveform_length)
+        self.fc_noise_2 = nn.Linear(dim_hidden + waveform_length, waveform_length)
+        self.act = nn.SiLU()
         #nn.init.zeros_(self.fc_log_amp_init.weight)
         #nn.init.zeros_(self.fc_log_amp_init.bias)
 
@@ -44,7 +48,9 @@ class Decoder(nn.Module):
         arg = fs + z_arg[:,:,None]
         base_wave = torch.sin(arg * torch.pi)  # Complex exponential
         waveform = amp * base_wave
-        return (amp_whole * waveform.sum(dim=1)).reshape(batch, length, self.waveform_length)
+        waveform = amp_whole * waveform.sum(dim=1)
+        noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
+        return (waveform + noise).reshape(batch, length, self.waveform_length)
 
 class VPMAutoEncoder(nn.Module):
     def __init__(self, waveform_length: int, dim_content: int, dim_print: int, dim: int, dim_hidden: int, num_layers: int):
