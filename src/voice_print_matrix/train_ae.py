@@ -14,7 +14,7 @@ jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch, size_ratio=1
 model_ae = AutoEncoder().to('cuda')
 model_ae.train()
 
-optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-4)
+optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-5)
 
 batch_size = 8
 num_epoch = 10
