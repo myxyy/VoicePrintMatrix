@@ -4,11 +4,11 @@ import torch
 import torchaudio
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_out=1024):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=8, dim_out=1024):
         super().__init__()
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=256, n_mels=128, center=False)
         num_steps = (waveform_length - 512) // 256 + 1
-        self.qgru = QGRUModel(dim_in=128 * num_steps, dim_out=dim_out, dim=dim, dim_hidden=2048, num_layers=4)
+        self.qgru = QGRUModel(dim_in=128 * num_steps, dim_out=dim_out, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
 
     def forward(self, x):
         batch, length, _ = x.shape
@@ -18,27 +18,33 @@ class Encoder(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, num_oscillators=32):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=8, num_oscillators=16):
         super().__init__()
-        self.qgru = QGRUModel(dim_in=1024, dim_out=1024, dim=dim, dim_hidden=2048, num_layers=4)
-        self.z_arg = nn.Parameter(torch.randn(num_oscillators))
-        self.fs_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
+        self.num_oscillators = num_oscillators
+        self.waveform_length = waveform_length
+        self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
+        self.z_arg = nn.Linear(dim, num_oscillators)
+        self.fs_fc = nn.Linear(dim, waveform_length)
         self.amp_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
+        self.amp_whole_fc = nn.Linear(dim, waveform_length)
         #nn.init.zeros_(self.fc_log_amp_init.weight)
         #nn.init.zeros_(self.fc_log_amp_init.bias)
-        self.waveform_length = waveform_length
 
     def forward(self, x):
         batch, length, dim = x.shape
         x = self.qgru(x)
         x = x.reshape(batch * length, dim)
-        fs = torch.einsum("bd, odw -> bow", x, self.fs_fc)
+        fs = self.fs_fc(x)
         fs = torch.cumsum(fs, dim=-1)
+        fs = fs[:,None,:] * torch.arange(self.num_oscillators, device=x.device)[None,:,None]
         amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
-        arg = fs + self.z_arg[None,:,None]
-        base_wave = torch.exp(1j * arg * torch.pi)  # Complex exponential
+        amp = torch.softmax(amp, dim=1)
+        amp_whole = self.amp_whole_fc(x)
+        z_arg = self.z_arg(x)
+        arg = fs + z_arg[:,:,None]
+        base_wave = torch.sin(arg * torch.pi)  # Complex exponential
         waveform = amp * base_wave
-        return waveform.mean(dim=1).real.reshape(batch, length, self.waveform_length)
+        return (amp_whole * waveform.sum(dim=1)).reshape(batch, length, self.waveform_length)
 
 class VPMAutoEncoder(nn.Module):
     def __init__(self, waveform_length: int, dim_content: int, dim_print: int, dim: int, dim_hidden: int, num_layers: int):
