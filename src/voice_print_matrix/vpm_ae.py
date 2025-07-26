@@ -70,7 +70,7 @@ class Decoder(nn.Module):
         fs_filter_fft = torch.fft.rfft(nn.functional.pad(fs_filter, (0, self.waveform_length), "constant", 0), dim=-1)
         fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
 
-        fs = torch.tanh(fs) * torch.exp(self.log_fs_scale)
+        fs = torch.sigmoid(fs) * torch.exp(self.log_fs_scale)
         fs = torch.cumsum(fs, dim=-1)
         fs = fs[:,None,:] * (torch.arange(self.num_oscillators, device=x.device) + 1)[None,:,None]
 
