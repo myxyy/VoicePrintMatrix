@@ -34,11 +34,10 @@ class MLP(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=16, sample_rate=22050):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=16):
         super().__init__()
         self.num_oscillators = num_oscillators
         self.waveform_length = waveform_length
-        self.sample_rate = sample_rate
         self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
         self.z_arg = nn.Linear(dim, num_oscillators)
         self.fs_fc = nn.Linear(dim, waveform_length)
@@ -65,10 +64,10 @@ class Decoder(nn.Module):
 
         fs = self.fs_fc(x)
 
-        fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
-        fs_filter = torch.softmax(self.fs_filter(x), dim=-1)
-        fs_filter_fft = torch.fft.rfft(nn.functional.pad(fs_filter, (0, self.waveform_length), "constant", 0), dim=-1)
-        fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
+        #fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
+        #fs_filter = torch.softmax(self.fs_filter(x), dim=-1)
+        #fs_filter_fft = torch.fft.rfft(nn.functional.pad(fs_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        #fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
 
         fs = torch.sigmoid(fs) * torch.exp(self.log_fs_scale)
         fs = torch.cumsum(fs, dim=-1)
@@ -79,17 +78,17 @@ class Decoder(nn.Module):
         #amp[:,0,:] = 0  # Set the first oscillator's amplitude to zero
         amp = torch.softmax(amp, dim=1)
 
-        amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp_filter = torch.softmax(torch.einsum("bd, dow -> bow", x, self.amp_filter), dim=-1)
-        amp_filter_fft = torch.fft.rfft(nn.functional.pad(amp_filter, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
+        #amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp_filter = torch.softmax(torch.einsum("bd, dow -> bow", x, self.amp_filter), dim=-1)
+        #amp_filter_fft = torch.fft.rfft(nn.functional.pad(amp_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
 
         amp_whole = self.amp_whole_fc(x)
 
-        amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp_whole_filter = torch.softmax(self.amp_whole_filter(x), dim=-1)
-        amp_whole_filter_fft = torch.fft.rfft(nn.functional.pad(amp_whole_filter, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
+        #amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp_whole_filter = torch.softmax(self.amp_whole_filter(x), dim=-1)
+        #amp_whole_filter_fft = torch.fft.rfft(nn.functional.pad(amp_whole_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
 
         z_arg = self.z_arg(x)
         arg = fs + z_arg[:,:,None]
