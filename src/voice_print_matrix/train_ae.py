@@ -17,7 +17,7 @@ model_ae.train()
 optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-5)
 
 batch_size = 8
-num_epoch = 20
+num_epoch = 10
 dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, shuffle=True)
  
 

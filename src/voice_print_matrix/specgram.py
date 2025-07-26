@@ -24,7 +24,7 @@ def generate_spectrogram(audio_path, output_path):
 
 if __name__ == "__main__":
     # Example usage
-    audio_file = 'resources/zundamon.wav'
-    output_image = 'resources/spectrogram.png'
+    audio_file = 'resources/zundamon_reconstructed.wav'
+    output_image = 'resources/spec_zunda_reconstructed.png'
     generate_spectrogram(audio_file, output_image)
     print(f"Spectrogram saved to {output_image}")

@@ -4,11 +4,12 @@ import torch
 import torchaudio
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, dim_out=1024):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, dim_out=1024, n_mels=64):
         super().__init__()
-        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=22050, n_fft=512, hop_length=256, n_mels=128, center=False)
+        sample_rate = 22050
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_fft=512, f_max=sample_rate // 2, hop_length=256, n_mels=n_mels, center=False)
         num_steps = (waveform_length - 512) // 256 + 1
-        self.qgru = QGRUModel(dim_in=128 * num_steps, dim_out=dim_out, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
+        self.qgru = QGRUModel(dim_in=n_mels * num_steps, dim_out=dim_out, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
 
     def forward(self, x):
         batch, length, _ = x.shape
@@ -31,6 +32,9 @@ class Decoder(nn.Module):
         self.fc_noise_1 = nn.Linear(dim + waveform_length, dim_hidden + waveform_length)
         self.fc_noise_2 = nn.Linear(dim_hidden + waveform_length, waveform_length)
         self.act = nn.SiLU()
+        self.amp_filter = nn.Parameter(torch.randn(num_oscillators, waveform_length))
+        self.amp_whole_filter = nn.Parameter(torch.randn(waveform_length))
+        self.fs_filter = nn.Parameter(torch.randn(waveform_length))
         #nn.init.zeros_(self.fc_log_amp_init.weight)
         #nn.init.zeros_(self.fc_log_amp_init.bias)
 
@@ -39,11 +43,30 @@ class Decoder(nn.Module):
         x = self.qgru(x)
         x = x.reshape(batch * length, dim)
         fs = self.fs_fc(x)
+
+        fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
+        fs_filter = torch.softmax(self.fs_filter, dim=-1)
+        fs_filter_fft = torch.fft.rfft(nn.functional.pad(fs_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
+
         fs = torch.cumsum(fs, dim=-1)
-        fs = fs[:,None,:] * torch.arange(self.num_oscillators, device=x.device)[None,:,None]
+        fs = fs[:,None,:] * (torch.arange(self.num_oscillators, device=x.device) + 1)[None,:,None]
+
         amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
         amp = torch.softmax(amp, dim=1)
+
+        amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
+        amp_filter = torch.softmax(self.amp_filter, dim=-1)
+        amp_filter_fft = torch.fft.rfft(nn.functional.pad(amp_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
+
         amp_whole = self.amp_whole_fc(x)
+
+        amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
+        amp_whole_filter = torch.softmax(self.amp_whole_filter, dim=-1)
+        amp_whole_filter_fft = torch.fft.rfft(nn.functional.pad(amp_whole_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
+
         z_arg = self.z_arg(x)
         arg = fs + z_arg[:,:,None]
         base_wave = torch.sin(arg * torch.pi)  # Complex exponential
