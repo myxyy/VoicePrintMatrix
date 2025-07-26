@@ -23,7 +23,6 @@ dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, s
 
 criterion = nn.MSELoss()
 
-voice_print_permutation_split = 8
 
 for _ in range(num_epoch):
     pbar = tqdm(dataloader)
@@ -31,11 +30,10 @@ for _ in range(num_epoch):
         waveform, label = batch
         optimizer_ae.zero_grad()
         batch_size, length, segment_length = waveform.shape
-        assert length % voice_print_permutation_split == 0, "Length must be divisible by voice_print_permutation_split"
-        waveform = waveform.reshape(batch_size * length, 1, segment_length).to('cuda')
+        waveform = waveform.to('cuda')
         waveform_reconstructed, latent = model_ae(waveform)
-        waveform_spectrum = multiscale_spectrum(waveform.squeeze(1))
-        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.squeeze(1))
+        waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, segment_length))
+        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, segment_length))
         loss = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
         loss.backward()
         optimizer_ae.step()
