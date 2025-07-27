@@ -57,6 +57,8 @@ class Decoder(nn.Module):
         self.amp_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length) * dim ** -0.5)
         self.amp_whole_filter = nn.Linear(dim, waveform_length)
         self.fs_filter = nn.Linear(dim, waveform_length)
+        self.waveform_filter = nn.Linear(dim, waveform_length)
+        self.log_waveform_filter_temperature = nn.Parameter(torch.zeros(1))
         self.act = nn.SiLU()
         #nn.init.zeros_(self.fc_log_amp_init.weight)
         #nn.init.zeros_(self.fc_log_amp_init.bias)
@@ -102,6 +104,13 @@ class Decoder(nn.Module):
 
         waveform = amp * base_wave
         waveform = amp_whole * waveform.sum(dim=1)
+
+        waveform.reshape(batch, length * self.waveform_length)
+        waveform_fft = torch.fft.rfft(nn.functional.pad(waveform, (0, self.waveform_length), "constant", 0), dim=-1)
+        waveform_filter_temperature = torch.exp(self.log_waveform_filter_temperature)
+        waveform_filter = torch.softmax(self.waveform_filter(x) * waveform_filter_temperature, dim=-1)
+        waveform_filter_fft = torch.fft.rfft(nn.functional.pad(waveform_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length, dim=-1)
 
         #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
         #return (waveform + noise).reshape(batch, length, self.waveform_length)
