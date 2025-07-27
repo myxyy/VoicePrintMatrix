@@ -46,10 +46,14 @@ class Decoder(nn.Module):
         nn.init.zeros_(self.fs_fc.bias)
         #self.fs_fc = MLP(dim, waveform_length, dim_hidden=dim_hidden)
         self.amp_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
+        self.log_amp_temperature = nn.Parameter(torch.zeros(1))
         self.amp_whole_fc = nn.Linear(dim, waveform_length)
-        #self.norm = nn.LayerNorm(dim)
-        #self.fc_noise_1 = nn.Linear(dim + waveform_length, dim_hidden + waveform_length)
-        #self.fc_noise_2 = nn.Linear(dim_hidden + waveform_length, waveform_length)
+        self.log_amp_whole_temperature = nn.Parameter(torch.zeros(1))
+
+        self.norm = nn.LayerNorm(dim)
+        self.fc_noise_1 = nn.Linear(dim + waveform_length, dim_hidden + waveform_length)
+        self.fc_noise_2 = nn.Linear(dim_hidden + waveform_length, waveform_length)
+
         self.amp_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length) * dim ** -0.5)
         self.amp_whole_filter = nn.Linear(dim, waveform_length)
         self.fs_filter = nn.Linear(dim, waveform_length)
@@ -76,14 +80,16 @@ class Decoder(nn.Module):
         amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
         #amp = -self.act(amp)
         #amp[:,0,:] = 0  # Set the first oscillator's amplitude to zero
-        amp = torch.softmax(amp, dim=1)
+        amp_temperature = torch.exp(self.log_amp_temperature)
+        amp = torch.softmax(amp * amp_temperature, dim=1)
 
         #amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
         #amp_filter = torch.softmax(torch.einsum("bd, dow -> bow", x, self.amp_filter), dim=-1)
         #amp_filter_fft = torch.fft.rfft(nn.functional.pad(amp_filter, (0, self.waveform_length), "constant", 0), dim=-1)
         #amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
 
-        amp_whole = self.amp_whole_fc(x)
+        amp_whole_temperature = torch.exp(self.log_amp_whole_temperature)
+        amp_whole = torch.exp(self.amp_whole_fc(x) * amp_whole_temperature)
 
         #amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
         #amp_whole_filter = torch.softmax(self.amp_whole_filter(x), dim=-1)
@@ -93,8 +99,10 @@ class Decoder(nn.Module):
         z_arg = self.z_arg(x)
         arg = fs + z_arg[:,:,None]
         base_wave = torch.sin(arg * torch.pi)  # Complex exponential
+
         waveform = amp * base_wave
         waveform = amp_whole * waveform.sum(dim=1)
+
         #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
         #return (waveform + noise).reshape(batch, length, self.waveform_length)
         return waveform.reshape(batch, length, self.waveform_length)
