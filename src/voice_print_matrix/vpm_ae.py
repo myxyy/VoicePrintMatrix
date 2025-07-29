@@ -56,7 +56,8 @@ class Decoder(nn.Module):
 
         self.amp_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length) * dim ** -0.5)
         self.amp_whole_filter = nn.Linear(dim, waveform_length)
-        self.fs_filter = nn.Linear(dim, waveform_length)
+        self.fs_filter = nn.Linear(dim, waveform_length * 2)
+        self.log_fs_filter_temperature = nn.Parameter(torch.zeros(1))
         self.waveform_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length * 2) * dim ** -0.5)
         self.log_waveform_filter_temperature = nn.Parameter(torch.zeros(num_oscillators))
         self.act = nn.SiLU()
@@ -70,10 +71,11 @@ class Decoder(nn.Module):
 
         fs = self.fs_fc(x)
 
-        #fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
-        #fs_filter = torch.softmax(self.fs_filter(x), dim=-1)
-        #fs_filter_fft = torch.fft.rfft(nn.functional.pad(fs_filter, (0, self.waveform_length), "constant", 0), dim=-1)
-        #fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
+        fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
+        fs_filter_temperature = torch.exp(self.log_fs_filter_temperature)
+        fs_filter = torch.softmax(self.fs_filter(x) * fs_filter_temperature, dim=-1)
+        fs_filter_fft = torch.fft.rfft(fs_filter, dim=-1)
+        fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
 
         fs = torch.sigmoid(fs) * torch.exp(self.log_fs_scale)
         fs = torch.cumsum(fs, dim=-1)
