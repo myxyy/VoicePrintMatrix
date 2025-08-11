@@ -24,8 +24,8 @@ dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, s
 criterion = nn.MSELoss()
 
 
-for _ in range(num_epoch):
-    pbar = tqdm(dataloader)
+for i in range(num_epoch):
+    pbar = tqdm(dataloader, desc=f"Epoch {i+1}/{num_epoch}")
     for batch in pbar:
         waveform, label = batch
         optimizer_ae.zero_grad()

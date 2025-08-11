@@ -2,6 +2,7 @@ from voice_print_matrix.qgru import QGRUModel
 import torch.nn as nn
 import torch
 import torchaudio
+import numpy as np
 
 class Encoder(nn.Module):
     def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, dim_out=1024, n_mels=64):
@@ -41,7 +42,7 @@ class Decoder(nn.Module):
         self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
         self.z_arg = nn.Linear(dim, num_oscillators)
         self.fs_fc = nn.Linear(dim, waveform_length)
-        self.log_fs_scale = nn.Parameter(torch.zeros(1))
+        self.log_fs_scale = nn.Parameter(torch.ones(1) * np.log(1e-3))
         nn.init.zeros_(self.fs_fc.weight)
         nn.init.zeros_(self.fs_fc.bias)
         #self.fs_fc = MLP(dim, waveform_length, dim_hidden=dim_hidden)
@@ -71,11 +72,11 @@ class Decoder(nn.Module):
 
         fs = self.fs_fc(x)
 
-        fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
-        fs_filter_temperature = torch.exp(self.log_fs_filter_temperature)
-        fs_filter = torch.softmax(self.fs_filter(x) * fs_filter_temperature, dim=-1)
-        fs_filter_fft = torch.fft.rfft(fs_filter, dim=-1)
-        fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
+        #fs_fft = torch.fft.rfft(nn.functional.pad(fs, (0, self.waveform_length), "constant", 0), dim=-1)
+        #fs_filter_temperature = torch.exp(self.log_fs_filter_temperature)
+        #fs_filter = torch.softmax(self.fs_filter(x) * fs_filter_temperature, dim=-1)
+        #fs_filter_fft = torch.fft.rfft(fs_filter, dim=-1)
+        #fs = torch.fft.irfft(fs_fft * fs_filter_fft, n=self.waveform_length, dim=-1)
 
         fs = torch.sigmoid(fs) * torch.exp(self.log_fs_scale)
         fs = torch.cumsum(fs, dim=-1)
@@ -87,18 +88,18 @@ class Decoder(nn.Module):
         amp_temperature = torch.exp(self.log_amp_temperature)
         amp = torch.softmax(amp * amp_temperature, dim=1)
 
-        amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp_filter = torch.softmax(torch.einsum("bd, dow -> bow", x, self.amp_filter), dim=-1)
-        amp_filter_fft = torch.fft.rfft(amp_filter, dim=-1)
-        amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
+        #amp_fft = torch.fft.rfft(nn.functional.pad(amp, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp_filter = torch.softmax(torch.einsum("bd, dow -> bow", x, self.amp_filter), dim=-1)
+        #amp_filter_fft = torch.fft.rfft(amp_filter, dim=-1)
+        #amp = torch.fft.irfft(amp_fft * amp_filter_fft, n=self.waveform_length, dim=-1)
 
         amp_whole_temperature = torch.exp(self.log_amp_whole_temperature)
         amp_whole = torch.exp(self.amp_whole_fc(x) * amp_whole_temperature)
 
-        amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
-        amp_whole_filter = torch.softmax(self.amp_whole_filter(x), dim=-1)
-        amp_whole_filter_fft = torch.fft.rfft(amp_whole_filter, dim=-1)
-        amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
+        #amp_whole_fft = torch.fft.rfft(nn.functional.pad(amp_whole, (0, self.waveform_length), "constant", 0), dim=-1)
+        #amp_whole_filter = torch.softmax(self.amp_whole_filter(x), dim=-1)
+        #amp_whole_filter_fft = torch.fft.rfft(amp_whole_filter, dim=-1)
+        #amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
 
         z_arg = self.z_arg(x)
         arg = fs + z_arg[:,:,None]
@@ -116,6 +117,7 @@ class Decoder(nn.Module):
         waveform_filter_fft = torch.fft.rfft(waveform_filter, dim=-1)
         waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length, dim=-1)
         waveform = waveform.sum(dim=1)
+        #waveform = waveform[:,0,:]
 
         #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
         #return (waveform + noise).reshape(batch, length, self.waveform_length)
