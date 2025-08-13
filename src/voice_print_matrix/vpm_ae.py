@@ -46,7 +46,8 @@ class Decoder(nn.Module):
         nn.init.zeros_(self.fs_fc.weight)
         nn.init.zeros_(self.fs_fc.bias)
         #self.fs_fc = MLP(dim, waveform_length, dim_hidden=dim_hidden)
-        self.amp_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
+        #self.amp_fc = nn.Parameter(torch.randn(num_oscillators, dim, waveform_length) * dim ** -0.5)
+        self.amp_fc = nn.Linear(dim, num_oscillators)
         self.log_amp_temperature = nn.Parameter(torch.zeros(1))
         self.amp_whole_fc = nn.Linear(dim, waveform_length)
         self.log_amp_whole_temperature = nn.Parameter(torch.zeros(1))
@@ -83,7 +84,8 @@ class Decoder(nn.Module):
         fs = torch.cumsum(fs, dim=-1)
         fs = fs[:,None,:] * (torch.arange(self.num_oscillators, device=x.device) + 1)[None,:,None]
 
-        amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
+        #amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
+        amp = self.amp_fc(x)
         #amp = -self.act(amp)
         #amp[:,0,:] = 0  # Set the first oscillator's amplitude to zero
         amp_temperature = torch.exp(self.log_amp_temperature)
@@ -106,7 +108,7 @@ class Decoder(nn.Module):
         arg = fs / self.num_oscillators + z_arg[:,:,None]
         base_wave = torch.sin(arg * torch.pi)  # Complex exponential
 
-        waveform = amp * base_wave
+        waveform = amp[:,:,None] * base_wave
         #waveform = base_wave
         waveform = amp_whole[:,None,:] * waveform # (batch * length, num_oscillators, waveform_length)
 
@@ -118,7 +120,7 @@ class Decoder(nn.Module):
         waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length, dim=-1)
 
         waveform = waveform.sum(dim=1)
-        #waveform = waveform[:,2,:]
+        #waveform = waveform[:,0,:]
 
         #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
         #return (waveform + noise).reshape(batch, length, self.waveform_length)
