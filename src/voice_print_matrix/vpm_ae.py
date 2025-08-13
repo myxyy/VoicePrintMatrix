@@ -35,7 +35,7 @@ class MLP(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=16):
+    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=32):
         super().__init__()
         self.num_oscillators = num_oscillators
         self.waveform_length = waveform_length
@@ -118,7 +118,7 @@ class Decoder(nn.Module):
         waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length, dim=-1)
 
         waveform = waveform.sum(dim=1)
-        #waveform = waveform[:,0,:]
+        #waveform = waveform[:,2,:]
 
         #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
         #return (waveform + noise).reshape(batch, length, self.waveform_length)

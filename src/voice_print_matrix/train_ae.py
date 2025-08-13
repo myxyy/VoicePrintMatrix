@@ -16,7 +16,7 @@ model_ae.train()
 
 optimizer_ae = torch.optim.Adam(model_ae.parameters(), lr=1e-5)
 
-batch_size = 8
+batch_size = 4
 num_epoch = 20
 dataloader = torch.utils.data.DataLoader(jvs_dataset, batch_size = batch_size, shuffle=True)
  
@@ -33,7 +33,7 @@ for i in range(num_epoch):
         waveform = waveform.to('cuda')
         waveform_reconstructed, latent = model_ae(waveform)
         waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, segment_length))
-        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, segment_length))
+        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, segment_length), min_length=64)
         loss = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
         loss.backward()
         optimizer_ae.step()
