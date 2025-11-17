@@ -126,6 +126,93 @@ class Decoder(nn.Module):
         #return (waveform + noise).reshape(batch, length, self.waveform_length)
         return waveform.reshape(batch, length, self.waveform_length)
 
+class HiFiGANConvBlock(nn.Module):
+    def __init__(self, channels, kernel_size, dilations):
+        super().__init__()
+        self.convs = nn.ModuleList()
+        for dilation in dilations:
+            conv = nn.Conv1d(channels, channels, kernel_size, padding=((kernel_size - 1) // 2) * dilation, dilation=dilation)
+            self.convs.append(conv)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        for conv in self.convs:
+            x = self.act(x)
+            x = conv(x)
+        return x
+
+class HiFiGANResBlock(nn.Module):
+    def __init__(self, channels, kernel_size, dilations_list):
+        super().__init__()
+        self.blocks = nn.ModuleList()
+        for dilations in dilations_list:
+            block = HiFiGANConvBlock(channels, kernel_size, dilations)
+            self.blocks.append(block)
+
+    def forward(self, x):
+        for block in self.blocks:
+            x_res = x
+            x = block(x)
+            x = x + x_res
+        return x
+
+class HiFiGANMRFBlock(nn.Module):
+    def __init__(self, channels, kernel_sizes, dilations_list_list):
+        super().__init__()
+        self.res_blocks = nn.ModuleList()
+        for kernel_size, dilations_list in zip(kernel_sizes, dilations_list_list):
+            res_block = HiFiGANResBlock(channels, kernel_size, dilations_list)
+            self.res_blocks.append(res_block)
+
+    def forward(self, x):
+        outputs = None
+        for res_block in self.res_blocks:
+            if outputs is None:
+                outputs = res_block(x)
+            else:
+                outputs = outputs + res_block(x)
+        return outputs
+
+class HiFiGANUpsampleBlock(nn.Module):
+    def __init__(self, channels, kernel_sizes, dilations_list_list):
+        super().__init__()
+        self.mrf_block = HiFiGANMRFBlock(channels // 2, kernel_sizes, dilations_list_list)
+        self.conv_transpose = nn.ConvTranspose1d(channels, channels // 2, kernel_size=4, stride=2, padding=1)
+        self.act = nn.SiLU()
+    
+    def forward(self, x):
+        x = self.act(x)
+        x = self.conv_transpose(x)
+        x = self.mrf_block(x)
+        return x
+
+class HiFiGANDecoder(nn.Module):
+    def __init__(self, waveform_length=2048, dim=1024, upsample_steps=4, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
+        super().__init__()
+        initial_length = waveform_length // (2 ** upsample_steps)
+        self.fc = nn.Linear(dim, initial_channel * initial_length)
+        self.upsample_blocks = nn.ModuleList()
+        self.initial_channel = initial_channel
+        channel = initial_channel
+        for _ in range(upsample_steps):
+            upsample_block = HiFiGANUpsampleBlock(channel, kernel_sizes, dilations_list_list)
+            self.upsample_blocks.append(upsample_block)
+            channel = channel // 2
+        self.conv_final = nn.Conv1d(channel, 1, kernel_size=7, padding=3)
+        self.act_final = nn.Tanh()
+    
+    def forward(self, x):
+        batch, length, dim = x.shape
+        x = x.reshape(batch * length, dim)
+        x = self.fc(x)
+        x = x.reshape(batch * length, self.initial_channel, -1)
+        for upsample_block in self.upsample_blocks:
+            x = upsample_block(x)
+        x = self.conv_final(x)
+        x = self.act_final(x)
+        x = x.reshape(batch, length, -1)
+        return x
+
 class VPMAutoEncoder(nn.Module):
     def __init__(self, waveform_length: int, dim_content: int, dim_print: int, dim: int, dim_hidden: int, num_layers: int):
         super().__init__()
@@ -151,7 +238,7 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = Encoder()
-        self.decoder = Decoder()
+        self.decoder = HiFiGANDecoder()
     
     def forward(self, x):
         latent = self.encoder(x)
