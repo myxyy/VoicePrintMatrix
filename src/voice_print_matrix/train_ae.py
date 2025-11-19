@@ -33,8 +33,9 @@ for i in range(num_epoch):
         batch_size, length, segment_length = waveform.shape
         waveform = waveform.to('cuda')
         waveform_reconstructed, latent = model_ae(waveform)
-        waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, segment_length))
-        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, segment_length), min_length=64)
+        min_length = 64
+        waveform_spectrum = multiscale_spectrum(waveform.reshape(batch_size * length, segment_length), min_length=min_length)
+        waveform_reconstructed_spectrum = multiscale_spectrum(waveform_reconstructed.reshape(batch_size * length, segment_length), min_length=min_length)
         loss = criterion(waveform_spectrum, waveform_reconstructed_spectrum)
         loss.backward()
         optimizer_ae.step()

@@ -18,7 +18,7 @@ def multiscale_spectrum(waveform, min_length=1):
         return waveform_fft.unsqueeze(1)  # Return as (batch, 1, length) if length is 1
     else:
         waveform_half = waveform.reshape(batch * 2, length // 2)
-        remaining_spectrum = multiscale_spectrum(waveform_half)
+        remaining_spectrum = multiscale_spectrum(waveform_half, min_length=min_length)
         remaining_spectrum = remaining_spectrum.reshape(batch, 2, -1, length // 2).transpose(1, 2).reshape(batch, -1, length)
         return torch.cat((waveform_fft.unsqueeze(1), remaining_spectrum), dim=1)
 
