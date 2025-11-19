@@ -5,7 +5,7 @@ import torchaudio
 import numpy as np
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, dim_out=1024, n_mels=64):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, dim_out=512, n_mels=64):
         super().__init__()
         sample_rate = 22050
         n_fft = 512
@@ -35,7 +35,7 @@ class MLP(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, dim_hidden=2048, num_layers=4, num_oscillators=32):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, num_oscillators=32):
         super().__init__()
         self.num_oscillators = num_oscillators
         self.waveform_length = waveform_length
@@ -187,7 +187,7 @@ class HiFiGANUpsampleBlock(nn.Module):
         return x
 
 class HiFiGANDecoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=1024, upsample_steps=4, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
+    def __init__(self, waveform_length=2048, dim=512, upsample_steps=3, initial_channel=128, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
         super().__init__()
         initial_length = waveform_length // (2 ** upsample_steps)
         self.fc = nn.Linear(dim, initial_channel * initial_length)
