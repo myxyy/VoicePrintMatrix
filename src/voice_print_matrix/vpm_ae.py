@@ -187,7 +187,7 @@ class HiFiGANUpsampleBlock(nn.Module):
         return x
 
 class HiFiGANDecoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, upsample_steps=3, initial_channel=128, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
+    def __init__(self, waveform_length=2048, dim=512, upsample_steps=3, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
         super().__init__()
         initial_length = waveform_length // (2 ** upsample_steps)
         self.fc = nn.Linear(dim, initial_channel * initial_length)
@@ -199,6 +199,7 @@ class HiFiGANDecoder(nn.Module):
             self.upsample_blocks.append(upsample_block)
             channel = channel // 2
         self.conv_final = nn.Conv1d(channel, 1, kernel_size=7, padding=3)
+        self.act = nn.SiLU()
         self.act_final = nn.Tanh()
     
     def forward(self, x):
@@ -208,6 +209,7 @@ class HiFiGANDecoder(nn.Module):
         x = x.reshape(batch * length, self.initial_channel, -1)
         for upsample_block in self.upsample_blocks:
             x = upsample_block(x)
+        x = self.act(x)
         x = self.conv_final(x)
         x = self.act_final(x)
         x = x.reshape(batch, length, -1)

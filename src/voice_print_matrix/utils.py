@@ -15,7 +15,7 @@ def multiscale_spectrum(waveform, min_length=1):
     assert (length & (length - 1)) == 0, "Length must be a power of 2"
     waveform_fft = fft(waveform, dim=-1).abs()
     if length <= min_length:
-        return waveform_fft.unsqueeze(1)  # Return as (batch, 1, length) if length is 1
+        return waveform_fft.unsqueeze(1)  # Return as (batch, 1, length)
     else:
         waveform_half = waveform.reshape(batch * 2, length // 2)
         remaining_spectrum = multiscale_spectrum(waveform_half, min_length=min_length)
