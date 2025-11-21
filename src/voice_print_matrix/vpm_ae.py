@@ -5,14 +5,14 @@ import torchaudio
 import numpy as np
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, dim_out=512, n_mels=64):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=64):
         super().__init__()
         sample_rate = 22050
         n_fft = 512
         hop_length = 256
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, f_max=sample_rate // 2, hop_length=hop_length, n_mels=n_mels, center=False)
         num_steps = (waveform_length - n_fft) // hop_length + 1
-        self.qgru = QGRUModel(dim_in=n_mels * num_steps, dim_out=dim_out, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
+        self.qgru = QGRUModel(dim_in=n_mels * num_steps, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
 
     def forward(self, x):
         batch, length, _ = x.shape
@@ -187,8 +187,9 @@ class HiFiGANUpsampleBlock(nn.Module):
         return x
 
 class HiFiGANDecoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, upsample_steps=3, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, upsample_steps=4, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
         super().__init__()
+        self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
         initial_length = waveform_length // (2 ** upsample_steps)
         self.fc = nn.Linear(dim, initial_channel * initial_length)
         self.upsample_blocks = nn.ModuleList()
@@ -204,6 +205,7 @@ class HiFiGANDecoder(nn.Module):
     
     def forward(self, x):
         batch, length, dim = x.shape
+        x = self.qgru(x)
         x = x.reshape(batch * length, dim)
         x = self.fc(x)
         x = x.reshape(batch * length, self.initial_channel, -1)
