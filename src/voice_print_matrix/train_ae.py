@@ -4,6 +4,7 @@ from voice_print_matrix.jvs_batch_dataset import JVSBatchDataset
 from voice_print_matrix.vpm_ae import AutoEncoder
 from tqdm import tqdm
 from voice_print_matrix.utils import multiscale_spectrum
+from voice_print_matrix.config import RESOURCES_DIR
 import os
 
 segment_per_batch = 256
@@ -44,7 +45,6 @@ for i in range(num_epoch):
         pbar.set_postfix(loss=loss.item())
 
     print("Saving model weights...")
-    if not os.path.exists('resources/weight'):
-        os.makedirs('resources/weight')
-    torch.save(model_ae.state_dict(), 'resources/weight/ae.pt')
+    os.makedirs(RESOURCES_DIR / 'weight', exist_ok=True)
+    torch.save(model_ae.state_dict(), RESOURCES_DIR / 'weight' / 'ae.pt')
 

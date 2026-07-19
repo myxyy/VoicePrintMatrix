@@ -4,9 +4,10 @@ import numpy as np
 from torch.utils.data import TensorDataset
 import torch
 import pathlib
+from voice_print_matrix.config import RESOURCES_DIR
 
 
-def JVSDataset(segment_length: int=2048, dataset_path: str='resources/jvs_ver1', seed: int=42) -> TensorDataset:
+def JVSDataset(segment_length: int=2048, dataset_path: str | os.PathLike=RESOURCES_DIR / 'jvs_ver1', seed: int=42) -> TensorDataset:
     num_files = 100
     sample_rate = 22050
     waveform_list = []

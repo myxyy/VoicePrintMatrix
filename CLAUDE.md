@@ -8,16 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 環境・コマンド
 
-- Python 3.10 固定(`requires-python = ">=3.10,<3.11"`)、パッケージ管理は uv。CUDA/GPU 前提のコード。
+- Python 3.10 固定(`requires-python = ">=3.10,<3.11"`)、パッケージ管理は uv のみ(Dockerは廃止済み)。CUDA/GPU 前提のコード。
 - テスト・リンタは未設定。`test.py` は pytest ではなく、データセットの動作確認用スクリプト。
 
 ```bash
 # 依存関係のインストール
 uv sync
 
-# Docker(GPU・NVIDIA runtime 必須。RESOURCES_DIR でデータ置き場を指定可能)
-docker compose up -d --build
-docker compose exec dev bash
+# 初回セットアップ: .env を作成しリソースの場所を指定
+cp .env.example .env
 
 # VPM(話者分離)モデルの学習 — DDP前提。単一GPUでも torchrun が必要
 # (train.py は無条件に init_process_group を呼ぶため)
@@ -34,11 +33,11 @@ uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのP
 
 ## 必要なデータ(gitに含まれない)
 
-`resources/` はgit管理外(Docker では bind mount)。実行には以下が必要:
+リソースの置き場所は `.env` の `RESOURCES_DIR` 環境変数で指定する(`src/voice_print_matrix/config.py` が `python-dotenv` で読み込み、未設定時はリポジトリ直下の `resources/` にフォールバック)。現在の実体は `/mnt/raid0/VoicePrintMatrix/resources/`。実行には以下が必要:
 
-- `resources/jvs_ver1/jvs001/ ... jvs100/` — JVSコーパス(22050Hzで読み込み)
-- `resources/zundamon.wav`, `resources/metan.wav` — 評価用音声
-- `resources/weight/` — 学習済み重みの保存先(`vpm_ae.pt`, `ae.pt`)
+- `$RESOURCES_DIR/jvs_ver1/jvs001/ ... jvs100/` — JVSコーパス(22050Hzで読み込み)
+- `$RESOURCES_DIR/zundamon.wav`, `$RESOURCES_DIR/metan.wav` — 評価用音声
+- `$RESOURCES_DIR/weight/` — 学習済み重みの保存先(`vpm_ae.pt`, `ae.pt`)
 
 ## アーキテクチャ
 

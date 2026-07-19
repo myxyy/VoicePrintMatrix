@@ -9,5 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-resources/*
-!resources/.gitkeep
+# Local resources fallback (RESOURCES_DIR 未設定時のみ使用)
+resources/
+
+# Environment variables
+.env

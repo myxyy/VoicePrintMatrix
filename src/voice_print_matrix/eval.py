@@ -3,8 +3,9 @@ from  voice_print_matrix.ae import AutoEncoder
 from voice_print_matrix.vpm_ae import VPMAutoEncoder
 import librosa
 import torchaudio
+from voice_print_matrix.config import RESOURCES_DIR
 
-vpm_ae_state_dict = torch.load("resources/weight/vpm_ae.pt")
+vpm_ae_state_dict = torch.load(RESOURCES_DIR / 'weight' / 'vpm_ae.pt')
 model_vpm_ae = VPMAutoEncoder(waveform_length=2048, dim_content=512, dim_print=512, dim=1024, dim_hidden=2048, num_layers=8).to('cuda')
 model_vpm_ae.load_state_dict(vpm_ae_state_dict)
 model_vpm_ae.eval()
@@ -12,12 +13,12 @@ model_vpm_ae.eval()
 segment_length = 2048
 sample_rate = 22050
 
-zundamon_waveform, _ = librosa.load('resources/zundamon.wav', sr=sample_rate)
+zundamon_waveform, _ = librosa.load(RESOURCES_DIR / 'zundamon.wav', sr=sample_rate)
 zundamon_waveform = zundamon_waveform[:(len(zundamon_waveform) // segment_length) * segment_length]
 zundamon_waveform_tensor = torch.tensor(zundamon_waveform, dtype=torch.float32).reshape(-1, segment_length).to('cuda')
 zundamon_length = zundamon_waveform_tensor.shape[0]
 
-metan_waveform, _ = librosa.load('resources/metan.wav', sr=22050)
+metan_waveform, _ = librosa.load(RESOURCES_DIR / 'metan.wav', sr=22050)
 metan_waveform = metan_waveform[:(len(metan_waveform) // segment_length) * segment_length]
 metan_waveform_tensor = torch.tensor(metan_waveform, dtype=torch.float32).reshape(-1, segment_length).to('cuda')
 metan_length = metan_waveform_tensor.shape[0]
@@ -28,4 +29,4 @@ metan_content = model_vpm_ae.content_encoder(metan_waveform_tensor[None,:,:]).re
 metan_zundamon_transformed_waveform = model_vpm_ae.decoder(torch.cat((metan_content[None,:,:], zundamon_print[None,None,:].expand(1, metan_length, -1)), dim=-1)).reshape(metan_length, -1)
 
 metan_zundamon_transformed_waveform = metan_zundamon_transformed_waveform.reshape(1,-1).cpu().detach()
-torchaudio.save(uri='resources/metan_zundamon_transformed.wav', src=metan_zundamon_transformed_waveform, sample_rate=sample_rate, encoding="PCM_F")
+torchaudio.save(uri=str(RESOURCES_DIR / 'metan_zundamon_transformed.wav'), src=metan_zundamon_transformed_waveform, sample_rate=sample_rate, encoding="PCM_F")

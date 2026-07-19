@@ -10,6 +10,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 from voice_print_matrix.utils import multiscale_spectrum
+from voice_print_matrix.config import RESOURCES_DIR
 
 gpu_id = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else 0
 world_size = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -87,6 +88,7 @@ for epoch in range(num_epoch):
 
     if gpu_id == 0:
         print("Saving model weights...")
-        torch.save(model_vpm_ae.module.state_dict(), 'resources/weight/vpm_ae.pt')
+        os.makedirs(RESOURCES_DIR / 'weight', exist_ok=True)
+        torch.save(model_vpm_ae.module.state_dict(), RESOURCES_DIR / 'weight' / 'vpm_ae.pt')
 
 destroy_process_group()

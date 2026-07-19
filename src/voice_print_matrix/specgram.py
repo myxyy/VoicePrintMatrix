@@ -1,6 +1,7 @@
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
+from voice_print_matrix.config import RESOURCES_DIR
 
 # generate spectrogram and save as a png file
 def generate_spectrogram(audio_path, output_path):
@@ -24,7 +25,7 @@ def generate_spectrogram(audio_path, output_path):
 
 if __name__ == "__main__":
     # Example usage
-    audio_file = 'resources/zundamon_reconstructed.wav'
-    output_image = 'resources/spec_zunda_reconstructed.png'
+    audio_file = RESOURCES_DIR / 'zundamon_reconstructed.wav'
+    output_image = RESOURCES_DIR / 'spec_zunda_reconstructed.png'
     generate_spectrogram(audio_file, output_image)
     print(f"Spectrogram saved to {output_image}")
