@@ -206,9 +206,10 @@ class HiFiGANDecoder(nn.Module):
     def forward(self, x):
         batch, length, dim = x.shape
         x = self.qgru(x)
-        x = x.reshape(batch * length, dim)
         x = self.fc(x)
-        x = x.reshape(batch * length, self.initial_channel, -1)
+        # セグメントを時間軸方向に連結してから畳み込むことで、境界をまたぐ受容野を確保し波形を連続にする
+        x = x.reshape(batch, length, self.initial_channel, -1)
+        x = x.transpose(1, 2).reshape(batch, self.initial_channel, -1)
         for upsample_block in self.upsample_blocks:
             x = upsample_block(x)
         x = self.act(x)
