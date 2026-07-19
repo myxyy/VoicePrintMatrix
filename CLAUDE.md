@@ -49,13 +49,13 @@ uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのP
   - `Decoder`: DDSP風の合成デコーダ(正弦波オシレータバンク + 学習フィルタをFFT畳み込みで適用)。コメントアウトが多く試行錯誤の跡が残っている
   - `HiFiGANDecoder`: HiFi-GAN風のアップサンプリングデコーダ(MRFブロック)。`AutoEncoder` はこちらを使用
   - `VPMAutoEncoder`: content_encoder / print_encoder の2系統エンコーダ + Decoder。本命のモデル
-  - `AutoEncoder`: Encoder + HiFiGANDecoder の単純AE(train_ae.py で使用)
+  - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'ddsp'`(Decoder、デフォルト)と `'hifigan'`(HiFiGANDecoder)を切り替え
 - **`train.py`** — VPMAutoEncoder のDDP学習。損失は4項:
   1. `loss_ae`: 波形再構成MSE
   2. `loss_vp`: バッチ内の voice print 同士のcosine類似度行列("voice print matrix")を、同一話者なら+1・異話者なら−1に近づける対照的損失
   3. `loss_udc` / `loss_udp`: voice print をバッチ内でシャッフルしてデコードした波形を再エンコードし、content / voice print が保存されるよう課すサイクル一貫性損失(`upside_down`)
 - **`jvs_batch_dataset.py`** — JVS全話者のwavを連結し `(segments_per_batch=256, 2048)` のブロックに切り出す `TensorDataset` を返す。話者ラベルはセグメント単位。`size_ratio` で使用話者数を絞れる(デバッグ用に `size_ratio=0.01` など)。毎回全wavをメモリにロードする(キャッシュなし)。
-- **`utils.py`** — `multiscale_spectrum`: 波形を再帰的に半分に割りながら各スケールのFFT振幅を積むマルチスケールスペクトル損失用の変換(長さは2の冪必須)。
+- **`utils.py`** — `MultiResolutionSTFTLoss`: Hann窓・75%オーバーラップ・複数FFTサイズの multi-resolution STFT 損失(spectral convergence + log振幅L1)。セグメント連結後の波形全体に適用する(窓が境界をまたぐため不連続も罰せられる)。`multiscale_spectrum` は旧損失用の変換(矩形窓・オーバーラップなし、長さは2の冪必須)。train_ae.py 冒頭の `loss_type`(`'mrstft'` / `'multiscale'`)でどちらを使うか選択できる。
 
 ## 既知の問題(中断時点の状態)
 
