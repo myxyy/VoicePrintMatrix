@@ -240,10 +240,15 @@ class VPMAutoEncoder(nn.Module):
         return content_reconstructed, voice_print_reconstructed
 
 class AutoEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, decoder_type: str = 'ddsp'):
         super().__init__()
         self.encoder = Encoder()
-        self.decoder = HiFiGANDecoder()
+        if decoder_type == 'ddsp':
+            self.decoder = Decoder()
+        elif decoder_type == 'hifigan':
+            self.decoder = HiFiGANDecoder()
+        else:
+            raise ValueError(f"unknown decoder_type: {decoder_type}")
     
     def forward(self, x):
         latent = self.encoder(x)
