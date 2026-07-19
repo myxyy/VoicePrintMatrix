@@ -12,7 +12,7 @@ class MultiResolutionSTFTLoss(nn.Module):
     入力波形は (batch, time)。時間軸に連結した波形を渡せば、
     窓がセグメント境界をまたぐため境界の不連続も損失に反映される。
     """
-    def __init__(self, n_ffts=(64, 128, 256, 512, 1024, 2048), eps=1e-7):
+    def __init__(self, n_ffts=(64, 128, 256, 512, 1024, 2048), eps=1e-5):
         super().__init__()
         self.n_ffts = n_ffts
         self.eps = eps

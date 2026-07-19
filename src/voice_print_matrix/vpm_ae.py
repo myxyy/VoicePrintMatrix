@@ -40,7 +40,7 @@ class Decoder(nn.Module):
         self.num_oscillators = num_oscillators
         self.waveform_length = waveform_length
         self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
-        self.z_arg = nn.Linear(dim, num_oscillators)
+        self.phase_offset = nn.Parameter(torch.zeros(num_oscillators))
         self.fs_fc = nn.Linear(dim, waveform_length)
         self.log_fs_scale = nn.Parameter(torch.zeros(1))
         nn.init.zeros_(self.fs_fc.weight)
@@ -60,7 +60,7 @@ class Decoder(nn.Module):
         #self.amp_whole_filter = nn.Linear(dim, waveform_length * 2)
         #self.fs_filter = nn.Linear(dim, waveform_length * 2)
         #self.log_fs_filter_temperature = nn.Parameter(torch.zeros(1))
-        self.waveform_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length * 2) * dim ** -0.5)
+        self.waveform_filter = nn.Parameter(torch.randn(dim, num_oscillators, waveform_length) * dim ** -0.5)
         self.log_waveform_filter_temperature = nn.Parameter(torch.zeros(num_oscillators))
         #self.act = nn.SiLU()
         #nn.init.zeros_(self.fc_log_amp_init.weight)
@@ -81,7 +81,12 @@ class Decoder(nn.Module):
 
         #fs = torch.sigmoid(fs) * torch.exp(self.log_fs_scale)
         fs = torch.sigmoid(fs)
-        fs = torch.cumsum(fs, dim=-1)
+        # 位相はセグメント内ではなく全セグメントを連結した時間軸で累積し、境界の不連続をなくす。
+        # 長時間の累積はfloat32では精度が足りなくなるため、float64で累積し
+        # 全倍音に共通の周期 2*num_oscillators で剰余をとってからfloat32に戻す
+        fs = fs.reshape(batch, length * self.waveform_length).double()
+        fs = torch.cumsum(fs, dim=-1) % (2 * self.num_oscillators)
+        fs = fs.float().reshape(batch * length, self.waveform_length)
         fs = fs[:,None,:] * (torch.arange(self.num_oscillators, device=x.device) + 1)[None,:,None]
 
         #amp = torch.einsum("bd, odw -> bow", x, self.amp_fc)
@@ -104,9 +109,8 @@ class Decoder(nn.Module):
         #amp_whole_filter_fft = torch.fft.rfft(amp_whole_filter, dim=-1)
         #amp_whole = torch.fft.irfft(amp_whole_fft * amp_whole_filter_fft, n=self.waveform_length, dim=-1)
 
-        z_arg = self.z_arg(x)
-        arg = fs / self.num_oscillators + z_arg[:,:,None]
-        base_wave = torch.sin(arg * torch.pi)  # Complex exponential
+        arg = fs / self.num_oscillators + self.phase_offset[None,:,None]
+        base_wave = torch.sin(arg * torch.pi)
 
         waveform = amp[:,:,None] * base_wave
         #waveform = base_wave
@@ -116,15 +120,20 @@ class Decoder(nn.Module):
         waveform_filter_temperature = torch.exp(self.log_waveform_filter_temperature)
         waveform_filter = torch.einsum("bd, dow -> bow", x, self.waveform_filter)
         waveform_filter = torch.softmax(waveform_filter * waveform_filter_temperature[None,:,None], dim=-1)
-        waveform_filter_fft = torch.fft.rfft(waveform_filter, dim=-1)
-        waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length, dim=-1)
+        waveform_filter_fft = torch.fft.rfft(nn.functional.pad(waveform_filter, (0, self.waveform_length), "constant", 0), dim=-1)
+        # FFTサイズ 2*waveform_length で線形畳み込みを復元する
+        # (旧実装の irfft(n=waveform_length) は周波数ビンの切り詰めにより信号が2倍にデシメーションされていた)
+        waveform = torch.fft.irfft(waveform_fft * waveform_filter_fft, n=self.waveform_length * 2, dim=-1)
 
         waveform = waveform.sum(dim=1)
-        #waveform = waveform[:,0,:]
 
-        #noise = self.fc_noise_2(self.act(self.fc_noise_1(torch.cat((x, waveform), dim=-1))))
-        #return (waveform + noise).reshape(batch, length, self.waveform_length)
-        return waveform.reshape(batch, length, self.waveform_length)
+        # フィルタの尾部がセグメントからはみ出した分は次のセグメントへオーバーラップアド
+        # (最終セグメントの尾部はバッチ範囲外のため破棄)
+        waveform = waveform.reshape(batch, length, 2 * self.waveform_length)
+        head = waveform[:, :, :self.waveform_length]
+        tail = waveform[:, :, self.waveform_length:]
+        waveform = head + nn.functional.pad(tail[:, :-1, :], (0, 0, 1, 0))
+        return waveform
 
 class HiFiGANConvBlock(nn.Module):
     def __init__(self, channels, kernel_size, dilations):
@@ -240,7 +249,7 @@ class VPMAutoEncoder(nn.Module):
         return content_reconstructed, voice_print_reconstructed
 
 class AutoEncoder(nn.Module):
-    def __init__(self, decoder_type: str = 'ddsp'):
+    def __init__(self, decoder_type: str = 'hifigan'):
         super().__init__()
         self.encoder = Encoder()
         if decoder_type == 'ddsp':

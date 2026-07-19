@@ -49,7 +49,7 @@ uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのP
   - `Decoder`: DDSP風の合成デコーダ(正弦波オシレータバンク + 学習フィルタをFFT畳み込みで適用)。コメントアウトが多く試行錯誤の跡が残っている
   - `HiFiGANDecoder`: HiFi-GAN風のアップサンプリングデコーダ(MRFブロック)。`AutoEncoder` はこちらを使用
   - `VPMAutoEncoder`: content_encoder / print_encoder の2系統エンコーダ + Decoder。本命のモデル
-  - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'ddsp'`(Decoder、デフォルト)と `'hifigan'`(HiFiGANDecoder)を切り替え
+  - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'ddsp'`(Decoder、デフォルト)と `'hifigan'`(HiFiGANDecoder)を切り替え。**現在の方針は HiFiGAN 路線**: DDSP は f0 を sin→cumsum 経由の勾配で学習する設計のため multi-resolution STFT 損失下では入力を無視した平均スペクトル解に崩壊することが確認済み(改善するには本家DDSP同様に外部ピッチトラッカーによる f0 条件付けが必要)
 - **`train.py`** — VPMAutoEncoder のDDP学習。損失は4項:
   1. `loss_ae`: 波形再構成MSE
   2. `loss_vp`: バッチ内の voice print 同士のcosine類似度行列("voice print matrix")を、同一話者なら+1・異話者なら−1に近づける対照的損失

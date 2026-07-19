@@ -15,7 +15,7 @@ jvs_dataset = JVSBatchDataset(segments_per_batch=segment_per_batch, size_ratio=1
 #print(jvs_dataset[6257])
 #print(len(jvs_dataset))
 
-model_ae = AutoEncoder().to('cuda')
+model_ae = AutoEncoder(decoder_type='hifigan').to('cuda')
 model_ae.train()
 
 optimizer_ae = torch.optim.AdamW(model_ae.parameters(), lr=1e-4)
