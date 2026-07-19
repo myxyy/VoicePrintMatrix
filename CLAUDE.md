@@ -1,0 +1,65 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## プロジェクト概要
+
+音声波形のみから話者特徴量(voice print)と発話内容特徴量(content)を分離抽出することを目指した実験的リポジトリ。JVSコーパス(日本語話者100名)で学習し、話者変換(あるコンテンツに別話者のvoice printを合成)を試みていた。**開発は途中で中断されており、コードは未完成・一部壊れた状態**(下記「既知の問題」参照)。
+
+## 環境・コマンド
+
+- Python 3.10 固定(`requires-python = ">=3.10,<3.11"`)、パッケージ管理は uv。CUDA/GPU 前提のコード。
+- テスト・リンタは未設定。`test.py` は pytest ではなく、データセットの動作確認用スクリプト。
+
+```bash
+# 依存関係のインストール
+uv sync
+
+# Docker(GPU・NVIDIA runtime 必須。RESOURCES_DIR でデータ置き場を指定可能)
+docker compose up -d --build
+docker compose exec dev bash
+
+# VPM(話者分離)モデルの学習 — DDP前提。単一GPUでも torchrun が必要
+# (train.py は無条件に init_process_group を呼ぶため)
+uv run torchrun --nproc_per_node=1 src/voice_print_matrix/train.py
+
+# 単純オートエンコーダの学習(単一GPU、通常のpython実行)
+uv run python src/voice_print_matrix/train_ae.py
+
+# 評価(話者変換 / 再構成)
+uv run python src/voice_print_matrix/eval.py      # metan の content + zundamon の voice print で変換
+uv run python src/voice_print_matrix/eval_ae.py   # zundamon.wav の再構成
+uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのPNG出力
+```
+
+## 必要なデータ(gitに含まれない)
+
+`resources/` はgit管理外(Docker では bind mount)。実行には以下が必要:
+
+- `resources/jvs_ver1/jvs001/ ... jvs100/` — JVSコーパス(22050Hzで読み込み)
+- `resources/zundamon.wav`, `resources/metan.wav` — 評価用音声
+- `resources/weight/` — 学習済み重みの保存先(`vpm_ae.pt`, `ae.pt`)
+
+## アーキテクチャ
+
+音声は22050Hzで読み込み、長さ2048サンプルのセグメント列として扱う。全モデルの入出力は `(batch, length, segment_length=2048)`。
+
+- **`qgru.py`** — 全モデルの基盤となる系列モデル。並列prefix-scan(`scan()`)で計算するGRU風の再帰層(QGRU)+ SwiGLU FFN のブロックを積んだ `QGRUModel`。セグメント系列方向の時間依存を担う。
+- **`vpm_ae.py`** — モデル定義がすべてここに集約されている:
+  - `Encoder`: MelSpectrogram → QGRU で各セグメントを潜在ベクトルへ
+  - `Decoder`: DDSP風の合成デコーダ(正弦波オシレータバンク + 学習フィルタをFFT畳み込みで適用)。コメントアウトが多く試行錯誤の跡が残っている
+  - `HiFiGANDecoder`: HiFi-GAN風のアップサンプリングデコーダ(MRFブロック)。`AutoEncoder` はこちらを使用
+  - `VPMAutoEncoder`: content_encoder / print_encoder の2系統エンコーダ + Decoder。本命のモデル
+  - `AutoEncoder`: Encoder + HiFiGANDecoder の単純AE(train_ae.py で使用)
+- **`train.py`** — VPMAutoEncoder のDDP学習。損失は4項:
+  1. `loss_ae`: 波形再構成MSE
+  2. `loss_vp`: バッチ内の voice print 同士のcosine類似度行列("voice print matrix")を、同一話者なら+1・異話者なら−1に近づける対照的損失
+  3. `loss_udc` / `loss_udp`: voice print をバッチ内でシャッフルしてデコードした波形を再エンコードし、content / voice print が保存されるよう課すサイクル一貫性損失(`upside_down`)
+- **`jvs_batch_dataset.py`** — JVS全話者のwavを連結し `(segments_per_batch=256, 2048)` のブロックに切り出す `TensorDataset` を返す。話者ラベルはセグメント単位。`size_ratio` で使用話者数を絞れる(デバッグ用に `size_ratio=0.01` など)。毎回全wavをメモリにロードする(キャッシュなし)。
+- **`utils.py`** — `multiscale_spectrum`: 波形を再帰的に半分に割りながら各スケールのFFT振幅を積むマルチスケールスペクトル損失用の変換(長さは2の冪必須)。
+
+## 既知の問題(中断時点の状態)
+
+- `train.py` と `eval.py` が `from voice_print_matrix.ae import AutoEncoder` を import しているが、`ae.py` は存在しない(モデルは `vpm_ae.py` にある)。この import を修正しないと実行不可。
+- `VPMAutoEncoder.__init__` が `Encoder(..., dim_out=...)` を呼ぶが、`Encoder.__init__` に `dim_out` 引数はない(TypeError になる)。QGRUModel の `dim_out` に渡す意図だったと思われる。
+- `train.py` の `voice_print_matrix` 変数がパッケージ名と同名でシャドーイングしている点に注意。
