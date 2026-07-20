@@ -45,7 +45,7 @@ uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのP
 - **`vpm_ae.py`** — モデル定義がすべてここに集約されている:
   - `Encoder`: MelSpectrogram → QGRU で各セグメントを潜在ベクトルへ
   - `Decoder`: DDSP風の合成デコーダ(正弦波オシレータバンク + 学習フィルタをFFT畳み込みで適用)。コメントアウトが多く試行錯誤の跡が残っている
-  - `HiFiGANDecoder`: HiFi-GAN風のアップサンプリングデコーダ(MRFブロック)。`AutoEncoder` はこちらを使用
+  - `HiFiGANDecoder`: HiFi-GAN V1風のアップサンプリングデコーダ。アップサンプル率 `[8,8,2,2]`(kernel=2×stride でチェッカーボード無し)、MRF は kernel `[3,7,11]` × dilation `[[1,1],[3,1],[5,1]]`、全畳み込みに weight normalization。1GPUあたり batch 4 × 256セグメントでピーク約17GiB(3090の24GBに対する制約から `initial_channel=256`)
   - `VPMAutoEncoder`: content_encoder / print_encoder の2系統エンコーダ + Decoder。本命のモデル
   - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'ddsp'`(Decoder、デフォルト)と `'hifigan'`(HiFiGANDecoder)を切り替え。**現在の方針は HiFiGAN 路線**: DDSP は f0 を sin→cumsum 経由の勾配で学習する設計のため multi-resolution STFT 損失下では入力を無視した平均スペクトル解に崩壊することが確認済み(改善するには本家DDSP同様に外部ピッチトラッカーによる f0 条件付けが必要)
 - **`train.py`** — VPMAutoEncoder のDDP学習。損失は4項:

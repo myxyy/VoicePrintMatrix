@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch
 import torchaudio
 import numpy as np
+import math
+from torch.nn.utils.parametrizations import weight_norm
 
 class Encoder(nn.Module):
     def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=64):
@@ -140,7 +142,7 @@ class HiFiGANConvBlock(nn.Module):
         super().__init__()
         self.convs = nn.ModuleList()
         for dilation in dilations:
-            conv = nn.Conv1d(channels, channels, kernel_size, padding=((kernel_size - 1) // 2) * dilation, dilation=dilation)
+            conv = weight_norm(nn.Conv1d(channels, channels, kernel_size, padding=((kernel_size - 1) // 2) * dilation, dilation=dilation))
             self.convs.append(conv)
         self.act = nn.SiLU()
 
@@ -183,12 +185,14 @@ class HiFiGANMRFBlock(nn.Module):
         return outputs
 
 class HiFiGANUpsampleBlock(nn.Module):
-    def __init__(self, channels, kernel_sizes, dilations_list_list):
+    def __init__(self, channels, stride, kernel_sizes, dilations_list_list):
         super().__init__()
         self.mrf_block = HiFiGANMRFBlock(channels // 2, kernel_sizes, dilations_list_list)
-        self.conv_transpose = nn.ConvTranspose1d(channels, channels // 2, kernel_size=4, stride=2, padding=1)
+        # kernel=2*stride, padding=stride/2 でちょうどstride倍のアップサンプルになり、
+        # カーネルがストライドで割り切れるためチェッカーボードアーティファクトが出ない
+        self.conv_transpose = weight_norm(nn.ConvTranspose1d(channels, channels // 2, kernel_size=stride * 2, stride=stride, padding=stride // 2))
         self.act = nn.SiLU()
-    
+
     def forward(self, x):
         x = self.act(x)
         x = self.conv_transpose(x)
@@ -196,19 +200,21 @@ class HiFiGANUpsampleBlock(nn.Module):
         return x
 
 class HiFiGANDecoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, upsample_steps=4, initial_channel=256, kernel_sizes=[3,5,7], dilations_list_list=[[[1],[2]],[[2],[6]],[[3],[12]]]):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, upsample_rates=[8, 8, 2, 2], initial_channel=256, kernel_sizes=[3, 7, 11], dilations_list_list=[[[1, 1], [3, 1], [5, 1]], [[1, 1], [3, 1], [5, 1]], [[1, 1], [3, 1], [5, 1]]]):
         super().__init__()
         self.qgru = QGRUModel(dim_in=dim, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
-        initial_length = waveform_length // (2 ** upsample_steps)
+        total_upsample = math.prod(upsample_rates)
+        assert waveform_length % total_upsample == 0, "waveform_length must be divisible by prod(upsample_rates)"
+        initial_length = waveform_length // total_upsample
         self.fc = nn.Linear(dim, initial_channel * initial_length)
         self.upsample_blocks = nn.ModuleList()
         self.initial_channel = initial_channel
         channel = initial_channel
-        for _ in range(upsample_steps):
-            upsample_block = HiFiGANUpsampleBlock(channel, kernel_sizes, dilations_list_list)
+        for rate in upsample_rates:
+            upsample_block = HiFiGANUpsampleBlock(channel, rate, kernel_sizes, dilations_list_list)
             self.upsample_blocks.append(upsample_block)
             channel = channel // 2
-        self.conv_final = nn.Conv1d(channel, 1, kernel_size=7, padding=3)
+        self.conv_final = weight_norm(nn.Conv1d(channel, 1, kernel_size=7, padding=3))
         self.act = nn.SiLU()
         self.act_final = nn.Tanh()
     
