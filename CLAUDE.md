@@ -43,11 +43,11 @@ uv run python src/voice_print_matrix/specgram.py  # スペクトログラムのP
 
 - **`qgru.py`** — 全モデルの基盤となる系列モデル。並列prefix-scan(`scan()`)で計算するGRU風の再帰層(QGRU)+ SwiGLU FFN のブロックを積んだ `QGRUModel`。セグメント系列方向の時間依存を担う。
 - **`vpm_ae.py`** — モデル定義がすべてここに集約されている:
-  - `Encoder`: MelSpectrogram → QGRU で各セグメントを潜在ベクトルへ
+  - `Encoder`: MelSpectrogram → QGRU で各セグメントを `num_latent_frames` 本の潜在ベクトル列へ(AutoEncoder のデフォルトは4本/セグメント=512サンプルごとに512次元1本。旧来の1本/セグメントは `num_latent_frames=1`)
   - `Decoder`: DDSP風の合成デコーダ(正弦波オシレータバンク + 学習フィルタをFFT畳み込みで適用)。コメントアウトが多く試行錯誤の跡が残っている
   - `HiFiGANDecoder`: HiFi-GAN V1風のアップサンプリングデコーダ。アップサンプル率 `[8,8,2,2]`(kernel=2×stride でチェッカーボード無し)、MRF は kernel `[3,7,11]` × dilation `[[1,1],[3,1],[5,1]]`、全畳み込みに weight normalization。1GPUあたり batch 4 × 256セグメントでピーク約17GiB(3090の24GBに対する制約から `initial_channel=256`)
   - `VPMAutoEncoder`: content_encoder / print_encoder の2系統エンコーダ + Decoder。本命のモデル
-  - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'ddsp'`(Decoder、デフォルト)と `'hifigan'`(HiFiGANDecoder)を切り替え。**現在の方針は HiFiGAN 路線**: DDSP は f0 を sin→cumsum 経由の勾配で学習する設計のため multi-resolution STFT 損失下では入力を無視した平均スペクトル解に崩壊することが確認済み(改善するには本家DDSP同様に外部ピッチトラッカーによる f0 条件付けが必要)
+  - `AutoEncoder`: Encoder + デコーダの単純AE(train_ae.py で使用)。`decoder_type` 引数で `'hifigan'`(HiFiGANDecoder、デフォルト)と `'ddsp'`(Decoder)を切り替え。デコーダは潜在フレーム1本から `waveform_length / num_latent_frames` サンプルを生成し、フレーム列を時間軸連結して波形化する。**現在の方針は HiFiGAN 路線**: DDSP は f0 を sin→cumsum 経由の勾配で学習する設計のため multi-resolution STFT 損失下では入力を無視した平均スペクトル解に崩壊することが確認済み(改善するには本家DDSP同様に外部ピッチトラッカーによる f0 条件付けが必要)
 - **`discriminator.py`** — HiFi-GAN の Multi-Period(周期 2,3,5,7,11)+ Multi-Scale(3スケール)Discriminator と LSGAN 損失・feature matching 損失。`HiFiGANDiscriminator.forward(real, fake)` は real/fake を連結して1回で処理する(DDPは1回のbackwardにつき1回のforwardしか許さないため、この形が必須)。敵対的損失は全系列ではなく波形からのランダムクロップ(16384サンプル×2個/アイテム)にのみ適用し、VRAMを節約する。train_ae.py の `use_gan` で有効化、重みは `lambda_spec`/`lambda_adv`/`lambda_fm`。
 - **`train.py`** — VPMAutoEncoder のDDP学習。損失は4項:
   1. `loss_ae`: 波形再構成MSE

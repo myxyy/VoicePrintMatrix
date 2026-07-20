@@ -7,20 +7,23 @@ import math
 from torch.nn.utils.parametrizations import weight_norm
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=64):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=64, num_latent_frames=1):
         super().__init__()
         sample_rate = 22050
         n_fft = 512
         hop_length = 256
+        self.num_latent_frames = num_latent_frames
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, f_max=sample_rate // 2, hop_length=hop_length, n_mels=n_mels, center=False)
         num_steps = (waveform_length - n_fft) // hop_length + 1
-        self.qgru = QGRUModel(dim_in=n_mels * num_steps, dim_out=dim, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
+        self.qgru = QGRUModel(dim_in=n_mels * num_steps, dim_out=dim * num_latent_frames, dim=dim, dim_hidden=dim_hidden, num_layers=num_layers)
 
     def forward(self, x):
+        # 出力はセグメントあたり num_latent_frames 本の潜在ベクトル列 (batch, length * num_latent_frames, dim)
         batch, length, _ = x.shape
         mel_spectrogram = self.transform(x)
         x = mel_spectrogram.reshape(batch, length, -1)
         x = self.qgru(x)
+        x = x.reshape(batch, length * self.num_latent_frames, -1)
         return x
 
 class MLP(nn.Module):
@@ -255,17 +258,23 @@ class VPMAutoEncoder(nn.Module):
         return content_reconstructed, voice_print_reconstructed
 
 class AutoEncoder(nn.Module):
-    def __init__(self, decoder_type: str = 'hifigan'):
+    def __init__(self, decoder_type: str = 'hifigan', waveform_length: int = 2048, num_latent_frames: int = 4):
         super().__init__()
-        self.encoder = Encoder()
+        assert waveform_length % num_latent_frames == 0, "waveform_length must be divisible by num_latent_frames"
+        self.waveform_length = waveform_length
+        self.encoder = Encoder(waveform_length=waveform_length, num_latent_frames=num_latent_frames)
+        # デコーダは潜在フレーム1本あたり waveform_length / num_latent_frames サンプルを生成する
+        frame_length = waveform_length // num_latent_frames
         if decoder_type == 'ddsp':
-            self.decoder = Decoder()
+            self.decoder = Decoder(waveform_length=frame_length)
         elif decoder_type == 'hifigan':
-            self.decoder = HiFiGANDecoder()
+            self.decoder = HiFiGANDecoder(waveform_length=frame_length)
         else:
             raise ValueError(f"unknown decoder_type: {decoder_type}")
-    
+
     def forward(self, x):
+        batch, length, _ = x.shape
         latent = self.encoder(x)
         x = self.decoder(latent)
+        x = x.reshape(batch, length, self.waveform_length)
         return x, latent
