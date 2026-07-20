@@ -5,7 +5,7 @@ import torchaudio
 from voice_print_matrix.config import RESOURCES_DIR
 
 ae_state_dict = torch.load(RESOURCES_DIR / 'weight' / 'ae.pt')
-model_ae = AutoEncoder().to('cuda')
+model_ae = AutoEncoder(decoder_type='hifigan').to('cuda')
 model_ae.load_state_dict(ae_state_dict)
 model_ae.eval()
 

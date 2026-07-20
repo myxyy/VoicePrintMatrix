@@ -18,12 +18,10 @@ uv sync
 # 初回セットアップ: .env を作成しリソースの場所を指定
 cp .env.example .env
 
-# VPM(話者分離)モデルの学習 — DDP前提。単一GPUでも torchrun が必要
-# (train.py は無条件に init_process_group を呼ぶため)
-uv run torchrun --nproc_per_node=1 src/voice_print_matrix/train.py
-
-# 単純オートエンコーダの学習(単一GPU、通常のpython実行)
-uv run python src/voice_print_matrix/train_ae.py
+# 学習 — いずれもDDP前提。単一GPUでも torchrun が必要
+# (無条件に init_process_group を呼ぶため)。GPUは6×RTX 3090
+uv run torchrun --nproc_per_node=6 src/voice_print_matrix/train.py     # VPM(話者分離)モデル
+uv run torchrun --nproc_per_node=6 src/voice_print_matrix/train_ae.py  # 単純オートエンコーダ
 
 # 評価(話者変換 / 再構成)
 uv run python src/voice_print_matrix/eval.py      # metan の content + zundamon の voice print で変換
