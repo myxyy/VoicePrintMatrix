@@ -7,10 +7,11 @@ import math
 from torch.nn.utils.parametrizations import weight_norm
 
 class Encoder(nn.Module):
-    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=64, num_latent_frames=1):
+    def __init__(self, waveform_length=2048, dim=512, dim_hidden=2048, num_layers=4, n_mels=128, n_fft=1024, num_latent_frames=1):
         super().__init__()
         sample_rate = 22050
-        n_fft = 512
+        # n_melsを増やす場合はn_fftも上げること: FFTビン間隔(sr/n_fft)より低域melフィルタの
+        # 帯域幅が狭くなると空フィルタ(常にゼロの特徴)が生じる。n_mels=128にはn_fft>=1024が必要
         hop_length = 256
         self.num_latent_frames = num_latent_frames
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, f_max=sample_rate // 2, hop_length=hop_length, n_mels=n_mels, center=False)
