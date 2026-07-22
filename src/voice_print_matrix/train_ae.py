@@ -60,7 +60,7 @@ criterion_mse = nn.MSELoss()
 
 for i in range(num_epoch):
     sampler.set_epoch(i)
-    pbar = tqdm(dataloader, desc=f"Epoch {i+1}/{num_epoch}", disable=(gpu_id != 0))
+    pbar = tqdm(dataloader, desc=f"Epoch {i+1}/{num_epoch}", disable=(gpu_id != 0), dynamic_ncols=True)
     for batch in pbar:
         waveform, label = batch
         batch_size, length, segment_length = waveform.shape
